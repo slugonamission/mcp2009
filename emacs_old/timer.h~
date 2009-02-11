@@ -1,0 +1,26 @@
+#ifndef __TIMER_H__
+#define __TIMER_H__
+
+##Timer data registers
+tmdr_0_low=0x0C
+tmdr_0_high=0x0D
+tmdr_1_low=0x14
+tmdr_1_high=0x15
+
+##Timer reload registers
+rldr_0_low=0x0E
+rldr_0_high=0x0F
+rldr_1_low=0x16
+rldr_1_high=0x17
+
+##Timer control register
+tcr=0x10
+
+##Global exports
+	.globl timer_init
+	.globl timer_0_enable
+	.globl timer_0_disable
+	.globl timer_1_enable
+	.globl timer_1_disable
+
+#endif

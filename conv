@@ -1,0 +1,11 @@
+#!/usr/bin/env python
+
+x = raw_input(">>")
+
+outstr = ""
+for c in x:
+  outstr += "'" + c + "',"
+
+print outstr[:-1]
+print "\nLen: "
+print len(x)

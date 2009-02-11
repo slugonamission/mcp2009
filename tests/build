@@ -1,0 +1,3 @@
+h180 as big_disp_test.asm
+h180 ld -T 8000 -C c000 a.out
+mcpload a.out

@@ -1,0 +1,24 @@
+#!/bin/env python
+import os
+import os.path
+
+currdir = os.getcwd()
+files = os.listdir(currdir)
+
+for f in files:
+    if(os.path.splitext(f)[1] == ".asm"):
+        os.system("cpp " + f + " | h180 as")
+        os.system("mv a.out " + os.path.splitext(f)[0] + ".o")
+
+args = ""
+files = os.listdir(currdir)
+
+for f in files:
+    if(os.path.splitext(f)[1] == ".o" && f[0] != "."):
+        args += f + " "
+
+print args
+os.system("h180 ld -T 8000 -C c000 " + args)
+os.system("rm *.o")
+os.system("mv *~ emacs_old/") #Clean up emacs while we're here
+os.system("mcpload a.out")

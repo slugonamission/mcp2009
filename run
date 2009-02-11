@@ -1,0 +1,1 @@
+echo "G8000" > /dev/ttyS0

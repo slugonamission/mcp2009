@@ -1,0 +1,12 @@
+#include "common.h"
+#include "display_small.h"
+#include "display.h"
+#include "network.h"
+#include "tilt.h"
+
+	ld sp,sp_loc
+	call init
+top:
+
+
+	## Messages

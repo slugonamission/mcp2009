@@ -1,0 +1,9 @@
+#ifndef __DISPLAY_SMALL_ASM__
+#define __DISPLAY_SMALL_ASM__
+
+	## Global operations
+	.globl clear_small
+	.globl write_small
+	.globl write_seq_small
+
+#endif
