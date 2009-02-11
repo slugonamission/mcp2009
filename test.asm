@@ -20,7 +20,7 @@ top:
 	call disp_init
 	call timer_init
 	call network_init
-	
+
 	call disp_clear_text
 	call disp_clear_graphics
 	call disp_text_mode
@@ -42,8 +42,7 @@ top:
 	ld hl,tilt_game
 	call write_seq_small
 
-	## Wait for input
-
+	
 in_loop:
 	in0 a,(0xF4)
 	and 0x88
