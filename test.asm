@@ -4,6 +4,7 @@
 #include "network.h"
 #include "tilt.h"
 #include "timer.h"
+#include "rtc.h"
 	
 top:
 	## Set everything up
@@ -20,7 +21,9 @@ top:
 	call disp_init
 	call timer_init
 	call network_init
+	call rtc_init
 
+	
 	call disp_clear_text
 	call disp_clear_graphics
 	call disp_text_mode
@@ -88,6 +91,13 @@ in_loop:
 	
 	## The rest is handled by the PRTs
 	call timer_0_enable
+
+	## Set a custom RTC callback
+	ld hl,main_rtc_callback
+	call rtc_set_callback
+	call rtc_start
+	call clear_small
+	
 	ei
 	
 	## ZOMG INFINITE LOOP
@@ -102,7 +112,7 @@ loop:	nop
 int_table:
 INT1:	 .int defh
 INT2:	 .int defh
-PRT0:	 .int PRT_routine
+PRT0:	 .int defh
 PRT1:	 .int defh
 DMA0:	 .int defh
 DMA1:	 .int defh
@@ -277,6 +287,10 @@ tilt_right:
 	ld b,a
 	pop af
 	ld h,0xFF
+	ret
+
+main_rtc_callback:
+	halt
 	ret
 	
 	## -----------------------------------------------------------------------------
