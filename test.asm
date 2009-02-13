@@ -9,7 +9,7 @@
 top:
 	## Set everything up
 	ld sp,sp_loc
-
+	
 	## Set up interrupts
 	ld bc,int_table
 	ld a,b
@@ -112,14 +112,14 @@ loop:	nop
 int_table:
 INT1:	 .int defh
 INT2:	 .int defh
-PRT0:	 .int defh
+PRT0:	 .int PRT_routine
 PRT1:	 .int defh
 DMA0:	 .int defh
 DMA1:	 .int defh
 CSIO:	 .int defh
 ASCI0:	 .int defh
 ASCI1:	 .int defh
-
+	
 defh:	ei
 	reti
 	
@@ -290,7 +290,8 @@ tilt_right:
 	ret
 
 main_rtc_callback:
-	halt
+	ld a,0x34
+	call write_small
 	ret
 	
 	## -----------------------------------------------------------------------------

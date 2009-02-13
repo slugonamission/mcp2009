@@ -5,15 +5,11 @@ rtc_init:
 	## Basically, we just need to init the vector table and initialise the variable
 	push af
 	push hl
-	
-	ld hl,rtc_isr
-	ld (INT1),hl
 
-	## We need to enable INT1 now
-	in0 a,(0x34)
-	or 0x02
-	out0 (0x34),a
-	
+	## We need to patch into NMI. The monitor automatically jumps to (0xF24C) for us
+	ld hl,rtc_isr
+	ld (nmi_callback),hl
+
 	pop hl
 	pop af
 	
@@ -97,4 +93,4 @@ rtc_isr_end:
 	pop hl
 	pop af
 	ei
-	reti
+	retn

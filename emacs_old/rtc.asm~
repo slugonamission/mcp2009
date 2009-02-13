@@ -83,13 +83,21 @@ rtc_isr:
 	ld hl,(rtc_count)
 	inc hl
 	ld (rtc_count),hl
-
-	## Call the custom callback
-	ld hl,(rtc_callback)
-	call hl
-	
+	call rtc_start_callback
+		
 rtc_isr_end:
 	pop hl
 	pop af
 	ei
 	reti
+
+rtc_start_callback:
+	## Put the current PC on top of the stack
+	pop hl
+	push hl
+	push hl
+	## Call the custom callback
+	ld hl,(rtc_callback)
+	jp (hl)
+
+	ret

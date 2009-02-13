@@ -3,6 +3,7 @@
 
 	## Constants
 
+nmi_callback=0xF24C
 sp_loc=0xEFFF
 	## Global exports
 	.globl delay
