@@ -82,6 +82,12 @@ in_loop:
 	ld b,0x10
 	call disp_write_b_seq
 
+	## Show the time on the screen
+	call clear_small
+	ld hl,timer
+	ld b,10
+	call write_seq_small
+	
 	## We should have the map, enter the main game loop
 	## B = X axis
 	## C = Y axis
@@ -96,7 +102,6 @@ in_loop:
 	ld hl,main_rtc_callback
 	call rtc_set_callback
 	call rtc_start
-	call clear_small
 	
 	ei
 	
@@ -125,7 +130,11 @@ defh:	ei
 	
 stub:	halt
 
-	
+	## --------------------------------------------------------------------------------
+	## Reload timer routine
+	## Use: Gets the value from the tilt sensors. If the display is tilted, check we
+	## 	can move into the space, and move the pixel into the space accordingly
+	## --------------------------------------------------------------------------------
 PRT_routine:
 	dec de
 	ld a,d
@@ -290,8 +299,7 @@ tilt_right:
 	ret
 
 main_rtc_callback:
-	ld a,0x34
-	call write_small
+	nop
 	ret
 	
 	## -----------------------------------------------------------------------------
@@ -303,7 +311,8 @@ start:	        "Press any button" #Len: 16
 start_2:	"    to begin    " #Len: 16
 loading:	"Please flip the switch" #Len:22
 done:		"     Loaded     " #Len: 16
-
+timer:          "Time: 0:00"	   #Len: 10
+	
 	## ----------------------------------------------------------------------------
 	## Vars
 	## ----------------------------------------------------------------------------
