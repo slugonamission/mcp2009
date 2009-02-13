@@ -7,6 +7,5 @@
 	.globl rtc_stop
 	.globl rtc_reset
 	.globl rtc_count
-	.globl rtc_running
 
 #endif
