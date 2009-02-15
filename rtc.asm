@@ -23,17 +23,19 @@ rtc_set_callback:
 
 	## Set the RTC to the running state
 rtc_start:
-	push af
-	ld a,0xFF
-	ld (rtc_running),a
-	pop af
+	push hl
+	## Big hack. Load the first 2 bytes with nop so it doesnt return
+	ld hl,0x0000
+	ld (rtc_isr),hl
+	pop hl
 	ret
 	
 rtc_stop:
-	push af
-	ld a,0x00
-	ld (rtc_running),a
-	pop af
+	push hl
+	## Big hack, load the first 2 bytes with retn to jump back out of the NMI routine
+	ld hl,0x45ED
+	ld (rtc_isr),hl
+	pop hl
 	ret
 	
 rtc_reset:
@@ -54,9 +56,6 @@ rtc_count:
 rtc_callback:
 	.int rtc_def_callback
 
-rtc_running:
-	.byte 0x00
-
 	## Default callback for the RTC
 rtc_def_callback:
 	nop
@@ -67,14 +66,10 @@ rtc_def_callback:
 	## ---------------------------------------------------------------------------
 
 rtc_isr:
+	retn
 	push af
 	push hl
-	
-	## Check if were running
-	ld a,(rtc_running)
-	cp 0xFF
-	jp nz,rtc_isr_end
-	
+		
 	## Ok, were running, carry on
 	## Increment the actual counter
 	ld hl,(rtc_count)
