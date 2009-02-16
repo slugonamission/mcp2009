@@ -5,6 +5,11 @@
 
 nmi_callback=0xF24C
 sp_loc=0xEFFF
+
+monster_count=10
+ghost_count=10
+jewel_count=10
+
 	## Global exports
 	.globl delay
   	.globl init

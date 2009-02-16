@@ -10,6 +10,9 @@ rtc_init:
 	ld hl,rtc_isr
 	ld (nmi_callback),hl
 
+	call rtc_stop
+	call rtc_reset
+	
 	pop hl
 	pop af
 	

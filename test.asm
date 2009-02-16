@@ -23,6 +23,11 @@ top:
 	call timer_init
 	call network_init
 	call rtc_init
+	ld a,0x00
+	ld (time_min_1),a
+	ld (time_min_2),a
+	ld (time_sec_1),a
+	ld (time_sec_2),a
 
 	
 	call disp_clear_text
@@ -199,3 +204,8 @@ time_min_2:	.byte '0'
 time_sep:	.byte ':' 	
 time_sec_1:	.byte '0'
 time_sec_2:	.byte '0'	#Now, to write the time, we can just tell the display to write from time_min_1
+
+	## Monster and ghost storage
+monsters:	.space monster_count
+ghosts:		.space ghost_count
+jewels:		.space jewel_count
