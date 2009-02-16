@@ -13,6 +13,8 @@ jewel_count=10
 	## Global exports
 	.globl delay
   	.globl init
+	.globl default_callback
+
 	.globl int_table
 	.globl INT1
 	.globl INT2

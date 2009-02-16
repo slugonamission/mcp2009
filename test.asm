@@ -137,6 +137,9 @@ defh:	ei
 	
 stub:	halt
 
+	## --------------------------------------------------------------------------
+	## RTC handler code
+	## --------------------------------------------------------------------------
 main_rtc_callback:
 	push af
 	push bc
@@ -184,6 +187,22 @@ main_rtc_callback_end:
 	pop bc
 	pop af
 	ret
+
+	## -----------------------------------------------------------------------------
+	## Network data handler code
+	## It is assumed HL will hold the relevant data in this case
+	## -----------------------------------------------------------------------------
+main_monster_callback:
+	ret
+
+main_ghost_callback:
+	ret
+
+main_jewel_callback:
+	ret
+
+main_network_end_callback:
+	ret
 	
 	## -----------------------------------------------------------------------------
 	## Messages
@@ -194,7 +213,7 @@ start:	        "Press any button" #Len: 16
 start_2:	"    to begin    " #Len: 16
 loading:	"Please flip the switch" #Len:22
 done:		"     Loaded     " #Len: 16
-timer:          "Time: "	   #Len: 11 (inc digits (below))
+timer:          "Time: "	   #Len: 11 (inc digits (below)) - THIS MUST BE THE LAST MESSAGE
 	
 	## ----------------------------------------------------------------------------
 	## Vars

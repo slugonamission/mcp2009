@@ -23,5 +23,11 @@ mcp_map_rows=65
 .globl network_init
 .globl network_recv_map
 .globl network_recv_byte
+.globl network_enable_recv_int
+.globl network_disable_recv_int
+.globl network_set_monster_callback
+.globl network_set_ghost_callback
+.globl network_set_jewel_callback
+.globl network_set_end_callback
 
 #endif

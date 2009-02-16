@@ -1,5 +1,6 @@
 #include "network.h"
-
+#include "common.h"
+	
 network_init:
 	## Were using port 0
 	## Set up ctrl a
@@ -16,6 +17,10 @@ network_init:
 	and 0xf6
 	out0 (asci_stat_0),a
 
+	## Patch ourself into the main interrupt handler
+	ld hl,network_int_handler
+	ld (ASCI0),hl
+	
 	ret
 	
 	## Recieves map data from the network
@@ -87,3 +92,86 @@ network_recv_byte:
 	## Ok, we have data, load it into a
 	in0 a,(asci_recv_0)
 	ret
+
+	## Enables the interrupt on data recv
+network_enable_recv_int:
+	push af
+	
+	in0 a,(asci_stat_0)
+	or 0x08
+	out0 (asci_stat_0),a
+
+	pop af	
+	ret
+
+	## Disables interrupt on data recv
+network_disable_recv_int:
+	push af
+
+	in0 a,(asci_stat_0)
+	and 0xF7
+	out0 (asci_stat_0),a
+
+	pop af
+	ret
+	
+network_set_monster_callback:
+	ld (network_monster_callback),hl
+	ret
+
+network_set_ghost_callback:
+	ld (network_ghost_callback),hl
+	ret
+
+network_set_jewel_callback:
+	ld (network_jewel_callback),hl
+	ret
+
+network_set_end_callback:
+	ld (network_end_callback),hl
+	ret
+	
+	## -------------------------------------------------------
+	## Interrupt handler
+	## -------------------------------------------------------
+network_int_handler:
+	push af
+
+	in0 a,(asci_recv_0)
+
+network_int_handler_end:	
+	pop af
+	reti
+
+	## The handlers for each seperate part of it all
+network_handler_start:
+	jp network_int_handler_end
+
+network_handler_len:
+	jp network_int_handler_end
+
+network_handler_map:
+	jp network_int_handler_end
+
+network_handler_extra:
+	jp network_int_handler_end
+
+network_handler_checksum:
+	jp network_int_handler_end
+
+network_handler_end:
+	jp network_int_handler_end
+	
+	## -------------------------------------------------------
+	## Vars
+	## -------------------------------------------------------
+network_monster_callback:	.int default_callback
+network_ghost_callback:		.int default_callback
+network_jewel_callback:		.int default_callback
+network_end_callback:		.int default_callback
+network_bytes_recv:		.byte 0x00
+network_bytes_total:		.byte 0x00
+
+	
+network_int_jump_table:
+	.byte 0x00

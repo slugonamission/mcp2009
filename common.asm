@@ -36,5 +36,6 @@ del1:	dec hl
 	pop af
 	ret
 
-
-
+default_callback:
+	nop
+	ret

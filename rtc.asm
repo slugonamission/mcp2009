@@ -57,13 +57,8 @@ rtc_count:
 	## The callback that can be overridden from the actual program
 	## HL will contain the current counter value!
 rtc_callback:
-	.int rtc_def_callback
-
-	## Default callback for the RTC
-rtc_def_callback:
-	nop
-	ret
-
+	.int default_callback
+	
 	## ---------------------------------------------------------------------------
 	## RTC ISR
 	## ---------------------------------------------------------------------------
