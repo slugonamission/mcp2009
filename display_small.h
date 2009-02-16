@@ -7,6 +7,7 @@ s_disp_command=0xb8
 
 	## Global operations
 	.globl clear_small
+        .globl set_adp_small
 	.globl write_small
 	.globl write_seq_small
 

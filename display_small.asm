@@ -24,6 +24,20 @@ clear_small:
 	pop af			#Back to normal set
 	ret
 
+	## Sets the address pointer for the display
+	## Params: a - the address to move to
+	## Destroys: a
+set_adp_small:
+	push hl
+	or 0x80			#Set the highest bit
+	out0 (s_disp_command),a
+
+	ld l,0x01
+	call delay
+	pop hl
+
+	ret
+	
 	## Writes a char to the cursor position on the display
 	## Char code must be in the A register
 	## Destroys: nothing
