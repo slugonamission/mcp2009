@@ -23,7 +23,8 @@ top:
 	call timer_init
 	call network_init
 	call rtc_init
-	ld a,0x00
+
+	ld a,'0'
 	ld (time_min_1),a
 	ld (time_min_2),a
 	ld (time_sec_1),a
