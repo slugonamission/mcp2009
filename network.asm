@@ -18,7 +18,7 @@ network_init:
 	out0 (asci_stat_0),a
 
 	## Patch ourself into the main interrupt handler
-	ld hl,network_int_handler
+	ld hl,network_handler_start
 	ld (ASCI0),hl
 	
 	ret
@@ -134,33 +134,147 @@ network_set_end_callback:
 	## -------------------------------------------------------
 	## Interrupt handler
 	## -------------------------------------------------------
-network_int_handler:
-	push af
-
-	in0 a,(asci_recv_0)
-
-network_int_handler_end:	
-	pop af
-	reti
 
 	## The handlers for each seperate part of it all
 network_handler_start:
-	jp network_int_handler_end
+	push af
+	push hl
+	in0 a,(asci_recv_0)
+	cp 0x55
+	jp nz,network_handler_start_end
 
+	ld hl,network_handler_len
+	ld (ASCI0),hl
+	
+network_handler_start_end:
+	pop af
+	pop hl
+	reti
+
+	## -----------------------------------------------------------------
 network_handler_len:
-	jp network_int_handler_end
+	push af
+	push hl
+	
+	in0 a,(asci_recv_0)
+	sub 0x04
+	ld (network_bytes_recv),a
 
+	pop hl
+	pop af
+	reti
+
+	## -----------------------------------------------------------------
 network_handler_map:
-	jp network_int_handler_end
+	## Were not actually interested in this data, ignore it
+	push af
+	in0 a,(asci_recv_0)
 
+	ld a,(network_bytes_recv)
+	inc a
+	ld (network_bytes_recv),a
+	cp 16
+	jp nz,network_handler_map_end
+
+	push hl
+	ld hl,network_handler_extra
+	ld (ASCI0),hl
+	pop hl
+
+network_handler_map_end:
+	pop af
+	reti
+	
+	## -----------------------------------------------------------------
 network_handler_extra:
-	jp network_int_handler_end
+	## Finally, we can check for jewels and ghosts!
+	push af
+	push hl
+	in0 a,(asci_recv_0)
+	push af
 
+	ld a,(network_bytes_recv)
+	inc a
+	ld (network_bytes_recv),a
+
+	ld h,a
+	
+	ld a,(network_bytes_total)
+	cp h
+	pop af
+	jp z,network_handler_extra_change
+
+	push af			#Were going to need it again!
+	## Figure out what type of item we have
+	and 0xC0		#Get the upper 2 bits
+
+	cp 0x40
+	jp z,network_handler_extra_jewel
+	cp 0x80
+	jp z,network_handler_extra_ghost
+	cp 0xc0
+	jp z,network_handler_extra_monster
+
+network_handler_extra_jewel:
+	pop af
+	ld hl,network_handler_extra_end
+	push hl
+	ld hl,(network_jewel_callback)
+	jp (hl)
+	
+network_handler_extra_ghost:
+	pop af
+	ld hl,network_handler_extra_end
+	push hl
+	ld hl,(network_ghost_callback)
+	jp (hl)
+	
+network_handler_extra_monster:	
+	pop af
+	ld hl,network_handler_extra_end
+	push hl
+	ld hl,(network_monster_callback)
+	jp (hl)
+	
+	## Change the handler to the next one
+network_handler_extra_change:	
+	ld hl,network_handler_checksum
+	ld (ASCI0),hl
+
+network_handler_extra_end:
+	pop hl
+	pop af
+	reti
+	
+	## -------------------------------------------------------------
 network_handler_checksum:
-	jp network_int_handler_end
+	## We dont care about the checksum right now
+	push af
+	push hl
+	in0 a,(asci_recv_0)
 
+	ld hl,network_handler_end
+	ld (ASCI0),hl
+
+	pop hl
+	pop af
+	reti
+	
+	## -------------------------------------------------------------
 network_handler_end:
-	jp network_int_handler_end
+	push af
+	push hl
+	in0 a,(asci_recv_0)
+
+	ld hl,network_handler_end_end
+	push hl
+	ld hl,(network_end_callback)
+	jp (hl)
+	
+network_handler_end_end:
+	pop hl
+	pop af
+	reti
 	
 	## -------------------------------------------------------
 	## Vars
@@ -171,7 +285,3 @@ network_jewel_callback:		.int default_callback
 network_end_callback:		.int default_callback
 network_bytes_recv:		.byte 0x00
 network_bytes_total:		.byte 0x00
-
-	
-network_int_jump_table:
-	.byte 0x00
