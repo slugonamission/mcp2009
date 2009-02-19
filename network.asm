@@ -85,7 +85,7 @@ network_recv_map_row_loop_end:
 network_clear_errors:
 	push af
 	in0 a,(asci_ctrl_a_0)
-	or 0x08
+	and 0xF7
 	out0 (asci_ctrl_a_0),a
 	pop af
 	ret
@@ -101,10 +101,6 @@ network_recv_byte:
 	
 	## Ok, we have data, load it into a
 	in0 a,(asci_recv_0)
-	ret
-
-overrun:
-	call clear_small
 	ret
 
 	## Enables the interrupt on data recv
@@ -144,13 +140,12 @@ network_handler_start:
 	call network_recv_byte
 	cp 0x55
 	jp nz,network_handler_start_end
-
 	ld hl,network_handler_len
 	ld (ASCI0),hl
 	
 network_handler_start_end:
-	pop af
 	pop hl
+	pop af
 
 	ei
 	reti
@@ -217,10 +212,11 @@ network_handler_map_end:
 network_handler_extra:
 	## Finally, we can check for jewels and ghosts!
 	push af
+	push bc
 	push hl
 
 	call network_recv_byte
-	push af
+	ld b,a
 
 	ld a,(network_bytes_recv)
 	inc a
@@ -230,11 +226,10 @@ network_handler_extra:
 	
 	ld a,(network_bytes_total)
 	cp h
-	pop af
 	jp z,network_handler_extra_change
 
 	## Load the rest of the bytes into the receive buffer
-	ld (iy),a
+	ld (iy),b
 	inc iy
 	
 	## Change the handler to the next one
@@ -244,6 +239,7 @@ network_handler_extra_change:
 
 network_handler_extra_end:
 	pop hl
+	pop bc
 	pop af
 
 	ei
