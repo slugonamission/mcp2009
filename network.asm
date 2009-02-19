@@ -1,6 +1,7 @@
 #include "network.h"
 #include "common.h"
-	
+#include "display_small.h"
+
 network_init:
 	## Were using port 0
 	## Set up ctrl a
@@ -20,7 +21,7 @@ network_init:
 	## Patch ourself into the main interrupt handler
 	ld hl,network_handler_start
 	ld (ASCI0),hl
-	
+
 	ret
 	
 	## Recieves map data from the network
@@ -80,17 +81,30 @@ network_recv_map_row_loop_end:
 	pop af
 
 	ret
-	
+
+network_clear_errors:
+	push af
+	in0 a,(asci_ctrl_a_0)
+	or 0x08
+	out0 (asci_ctrl_a_0),a
+	pop af
+	ret
+
 	## Loads a byte from the network into A
 	## Destroys: Anything currently in A. Duh.
 network_recv_byte:
+	call network_clear_errors
 	in0 a,(asci_stat_0)
-	and 0x80		#1000000 i.e. check for RDRF
+	and 0x84		#1000100 i.e. check for RDRF+DCD0
 	cp 0x80
-	jp nz, network_recv_byte
-
+	jp nz,network_recv_byte
+	
 	## Ok, we have data, load it into a
 	in0 a,(asci_recv_0)
+	ret
+
+overrun:
+	call clear_small
 	ret
 
 	## Enables the interrupt on data recv
@@ -115,18 +129,6 @@ network_disable_recv_int:
 	pop af
 	ret
 	
-network_set_monster_callback:
-	ld (network_monster_callback),hl
-	ret
-
-network_set_ghost_callback:
-	ld (network_ghost_callback),hl
-	ret
-
-network_set_jewel_callback:
-	ld (network_jewel_callback),hl
-	ret
-
 network_set_end_callback:
 	ld (network_end_callback),hl
 	ret
@@ -139,7 +141,7 @@ network_set_end_callback:
 network_handler_start:
 	push af
 	push hl
-	in0 a,(asci_recv_0)
+	call network_recv_byte
 	cp 0x55
 	jp nz,network_handler_start_end
 
@@ -149,6 +151,8 @@ network_handler_start:
 network_handler_start_end:
 	pop af
 	pop hl
+
+	ei
 	reti
 
 	## -----------------------------------------------------------------
@@ -156,19 +160,40 @@ network_handler_len:
 	push af
 	push hl
 	
-	in0 a,(asci_recv_0)
-	sub 0x04
-	ld (network_bytes_recv),a
+	call network_recv_byte
+	sub 0x05
+	ld (network_bytes_total),a
+
+	ld hl,network_handler_row
+	ld (ASCI0),hl
 
 	pop hl
 	pop af
+
+	ei
+	reti
+
+	## ----------------------------------------------------------------
+network_handler_row:
+	## We dont care about the row number
+	push af
+	push hl
+	call network_recv_byte
+
+	ld hl,network_handler_map
+	ld (ASCI0),hl
+
+	pop hl
+	pop af
+
+	ei
 	reti
 
 	## -----------------------------------------------------------------
 network_handler_map:
 	## Were not actually interested in this data, ignore it
 	push af
-	in0 a,(asci_recv_0)
+	call network_recv_byte
 
 	ld a,(network_bytes_recv)
 	inc a
@@ -179,10 +204,13 @@ network_handler_map:
 	push hl
 	ld hl,network_handler_extra
 	ld (ASCI0),hl
+	ld iy,network_recv_buffer #Set the initial buffer for the next procedure
 	pop hl
 
 network_handler_map_end:
 	pop af
+
+	ei
 	reti
 	
 	## -----------------------------------------------------------------
@@ -190,7 +218,8 @@ network_handler_extra:
 	## Finally, we can check for jewels and ghosts!
 	push af
 	push hl
-	in0 a,(asci_recv_0)
+
+	call network_recv_byte
 	push af
 
 	ld a,(network_bytes_recv)
@@ -204,46 +233,20 @@ network_handler_extra:
 	pop af
 	jp z,network_handler_extra_change
 
-	push af			#Were going to need it again!
-	## Figure out what type of item we have
-	and 0xC0		#Get the upper 2 bits
-
-	cp 0x40
-	jp z,network_handler_extra_jewel
-	cp 0x80
-	jp z,network_handler_extra_ghost
-	cp 0xc0
-	jp z,network_handler_extra_monster
-
-network_handler_extra_jewel:
-	pop af
-	ld hl,network_handler_extra_end
-	push hl
-	ld hl,(network_jewel_callback)
-	jp (hl)
-	
-network_handler_extra_ghost:
-	pop af
-	ld hl,network_handler_extra_end
-	push hl
-	ld hl,(network_ghost_callback)
-	jp (hl)
-	
-network_handler_extra_monster:	
-	pop af
-	ld hl,network_handler_extra_end
-	push hl
-	ld hl,(network_monster_callback)
-	jp (hl)
+	## Load the rest of the bytes into the receive buffer
+	ld (iy),a
+	inc iy
 	
 	## Change the handler to the next one
-network_handler_extra_change:	
+network_handler_extra_change:
 	ld hl,network_handler_checksum
 	ld (ASCI0),hl
 
 network_handler_extra_end:
 	pop hl
 	pop af
+
+	ei
 	reti
 	
 	## -------------------------------------------------------------
@@ -251,37 +254,51 @@ network_handler_checksum:
 	## We dont care about the checksum right now
 	push af
 	push hl
-	in0 a,(asci_recv_0)
+	call network_recv_byte
 
 	ld hl,network_handler_end
 	ld (ASCI0),hl
 
 	pop hl
 	pop af
+
+	ei
 	reti
 	
 	## -------------------------------------------------------------
 network_handler_end:
 	push af
 	push hl
-	in0 a,(asci_recv_0)
+	call network_recv_byte
 
+	## First, calculate the number of items we got
+	## Actual data bytes - 16 (map data)/2
+	ld a,(network_bytes_total)
+	sub 16
+	srl a
+	ld (network_item_count),a
+	
 	ld hl,network_handler_end_end
 	push hl
 	ld hl,(network_end_callback)
 	jp (hl)
 	
 network_handler_end_end:
+	## Set the handler back to the original one again
+	ld hl,network_handler_start
+	ld (ASCI0),hl
+	
 	pop hl
 	pop af
+
+	ei
 	reti
 	
 	## -------------------------------------------------------
 	## Vars
 	## -------------------------------------------------------
-network_monster_callback:	.int default_callback
-network_ghost_callback:		.int default_callback
-network_jewel_callback:		.int default_callback
 network_end_callback:		.int default_callback
 network_bytes_recv:		.byte 0x00
 network_bytes_total:		.byte 0x00
+network_item_count:		.byte 0x00
+network_recv_buffer:		.space item_space

@@ -1,19 +1,20 @@
 #include "tilt_prt.h"
 #include "display.h"
 #include "tilt.h"
-
+#include "timer.h"
+	
 	## --------------------------------------------------------------------------------
 	## Reload timer routine
 	## Use: Gets the value from the tilt sensors. If the display is tilted, check we
 	## 	can move into the space, and move the pixel into the space accordingly
 	## --------------------------------------------------------------------------------
 PRT_routine:
-	dec de
-	ld a,d
-	and 0xFF
-	jp z,PRT_start
-	ei
-	reti
+##	dec de
+##	ld a,d
+##	and 0xFF
+##	jp z,PRT_start
+##	ei
+##	reti
 	
 PRT_start:
 	ld de,0x30FF
@@ -88,6 +89,7 @@ shift_loop_end:
 	
 	pop bc			#Just incase the next jump actually happens
 	jp nz,PRT_restore_bc		#If it isnt 0, we cant move into it, jump out
+
 	## Right then, we now need to update the pixels
 	## Turn the new pixel on
 	## Put HL to be 0 based again (i.e. dont account for the 0xc0 offset)
@@ -128,6 +130,8 @@ PRT_restore_bc:
 	ld b,d
 	ld c,e
 PRT_end:
+	call timer_0_reset
+	
 	pop hl
 	pop af			#Reinstate all the registers
 	pop de

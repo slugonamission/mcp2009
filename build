@@ -22,3 +22,4 @@ os.system("h180 ld -T 8000 -C c000 " + args)
 os.system("rm *.o")
 os.system("mv *~ emacs_old/") #Clean up emacs while we're here
 os.system("mcpload a.out")
+#os.system("sleep 3 && echo 'G8000' > /dev/ttyS0")

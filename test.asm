@@ -78,16 +78,16 @@ in_loop:
 	call disp_graphics_mode
 
 	ld hl,0xc000
-	ld b,0xff
-	call disp_write_b_seq
-	ld b,0xff
-	call disp_write_b_seq
-	ld b,0xff
-	call disp_write_b_seq
-	ld b,0xff
-	call disp_write_b_seq
-	ld b,0x10
-	call disp_write_b_seq
+##	ld b,0xff
+##	call disp_write_b_seq
+##	ld b,0xff
+##	call disp_write_b_seq
+##	ld b,0xff
+##	call disp_write_b_seq
+##	ld b,0xff
+##	call disp_write_b_seq
+##	ld b,0x10
+##	call disp_write_b_seq
 
 	## Show the time on the screen
 	call clear_small
@@ -109,6 +109,11 @@ in_loop:
 	ld hl,main_rtc_callback
 	call rtc_set_callback
 	call rtc_start
+
+	## Set the end of network callback
+	ld hl,main_network_end_callback
+	call network_set_end_callback
+	call network_enable_recv_int
 	
 	ei
 	
@@ -143,6 +148,7 @@ stub:	halt
 main_rtc_callback:
 	push af
 	push bc
+	push hl
 	ld a,(time_sec_2)
 	inc a
 	cp 0x3A			#0x3A corresponds to '9'+1
@@ -183,25 +189,66 @@ main_rtc_callback_end:
 	ld hl,time_min_1
 	ld b,5
 	call write_seq_small
-	
+
+	pop hl
 	pop bc
 	pop af
 	ret
 
 	## -----------------------------------------------------------------------------
 	## Network data handler code
-	## It is assumed HL will hold the relevant data in this case
 	## -----------------------------------------------------------------------------
-main_monster_callback:
-	ret
-
-main_ghost_callback:
-	ret
-
-main_jewel_callback:
-	ret
-
 main_network_end_callback:
+	push hl
+	push bc
+	push de
+	
+	ld b,0x00		#The number of items we have currently handled
+
+	ld a,(network_item_count)
+	ld (item_recv_count),a
+	ld ix,network_recv_buffer
+
+main_network_end_callback_loop:	
+	## We now need to step through the recv buffer, looking for the data
+	ld d,(ix)
+	inc ix
+	ld e,(ix)
+	inc ix
+
+	## Subtract one from the Y (I start rows from 0, the spec starts from 1)
+	ld a,e
+	sub 0x01
+	and 0x3F		#Strip off the ident bits
+	ld e,a
+
+	## Standard display procedure
+	ld h,0x10
+	ld l,e
+	mlt hl
+	
+	ld a,d
+	srl d;srl d;srl d
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+	
+	and 0x07
+	cpl
+	or 0xF8
+	call clear_to_send
+	out0 (disp_cmd),a
+
+	inc b
+	ld a,(item_recv_count)
+	cp b
+
+	jp nz,main_network_end_callback_loop
+
+	pop de
+	pop bc
+	pop hl
 	ret
 	
 	## -----------------------------------------------------------------------------
@@ -226,6 +273,5 @@ time_sec_1:	.byte '0'
 time_sec_2:	.byte '0'	#Now, to write the time, we can just tell the display to write from time_min_1
 
 	## Monster and ghost storage
-monsters:	.space monster_count
-ghosts:		.space ghost_count
-jewels:		.space jewel_count
+items:			.space item_count
+item_recv_count:	.byte 0x00

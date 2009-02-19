@@ -22,5 +22,6 @@ tcr=0x10
 	.globl timer_0_disable
 	.globl timer_1_enable
 	.globl timer_1_disable
-
+	.globl timer_0_reset
+	.globl timer_1_reset
 #endif

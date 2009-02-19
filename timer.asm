@@ -22,7 +22,7 @@ timer_init:
 	## Should be done now
 	pop af
 	ret
-
+	
 	## SET THE ISR PROPERLY BEFORE CALLING ANY OF THESE!!!
 timer_0_enable:
 	push af
@@ -40,6 +40,22 @@ timer_0_disable:
 	pop af
 	ret
 
+	## To reset one of the timers to the reload value
+	## we just need to read tcr back in...
+timer_0_reset:
+	push af
+	in0 a,(tcr)
+	in0 a,(tmdr_0_low)
+	pop af
+	ret
+
+timer_1_reset:
+	push af
+	in0 a,(tcr)
+	in0 a,(tmdr_1_low)
+	pop af
+	ret
+	
 timer_1_enable:
 	push af
 	in0 a,(tcr)

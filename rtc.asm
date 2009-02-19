@@ -85,5 +85,5 @@ rtc_isr:
 rtc_isr_end:
 	pop hl
 	pop af
-	ei
+
 	retn
