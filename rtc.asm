@@ -37,6 +37,7 @@ rtc_stop:
 	push hl
 	## Big hack, load the first 2 bytes with retn to jump back out of the NMI routine
 	ld hl,0x45ED
+
 	ld (rtc_isr),hl
 	pop hl
 	ret

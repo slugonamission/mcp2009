@@ -210,17 +210,19 @@ main_network_end_callback:
 	ld a,10
 	ld (item_recv_count),a
 	ld ix,network_recv_buffer
-
+	ld (curr_ix_val),ix
+	
 main_network_end_callback_loop:	
 	## We now need to step through the recv buffer, looking for the data
+	ld ix,(curr_ix_val)
 	ld d,(ix)
 	inc ix
 	ld e,(ix)
 	inc ix
+	ld (curr_ix_val),ix
 
 	## Subtract one from the Y (I start rows from 0, the spec starts from 1)
 	ld a,e
-	sub 0x01
 	and 0x3F		#Strip off the ident bits
 	ld e,a
 
@@ -278,3 +280,4 @@ time_sec_2:	.byte '0'	#Now, to write the time, we can just tell the display to w
 	## Monster and ghost storage
 items:			.space item_count
 item_recv_count:	.byte 0x00
+curr_ix_val:		.int 0x0000

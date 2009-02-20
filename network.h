@@ -19,7 +19,7 @@ mcp_packet_end=0x0D
 mcp_map_loc=0xBFF0 ##Row 0 is a test row - ignore it
 mcp_map_rows=65
 
-item_space=100
+item_space=256
 
 ##Global exports
 .globl network_init

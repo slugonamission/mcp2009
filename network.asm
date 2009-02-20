@@ -132,175 +132,83 @@ network_set_end_callback:
 	## -------------------------------------------------------
 	## Interrupt handler
 	## -------------------------------------------------------
-
-	## The handlers for each seperate part of it all
 network_handler_start:
 	push af
-	push hl
+	push bc
+	
 	call network_recv_byte
 	cp 0x55
-	jp nz,network_handler_start_end
-	ld hl,network_handler_len
-	ld (ASCI0),hl
-	
-network_handler_start_end:
-	pop hl
-	pop af
+	jp nz,network_handler_real_end
 
-	ei
-	reti
-
-	## -----------------------------------------------------------------
-network_handler_len:
-	push af
-	push hl
-	
+	## Ok, we have just had the start byte, now receive the length
 	call network_recv_byte
-	sub 0x05
+	## Subtract the start(1), len(1), row(1), map data(16), checksum(1) and end(1) bytes = 21
+	sub 21
 	ld (network_bytes_total),a
 
-	ld hl,network_handler_row
-	ld (ASCI0),hl
-
-	pop hl
-	pop af
-
-	ei
-	reti
-
-	## ----------------------------------------------------------------
-network_handler_row:
-	## We dont care about the row number
-	push af
-	push hl
+	## Get the row number. We dont actually need this though
 	call network_recv_byte
 
-	ld hl,network_handler_map
-	ld (ASCI0),hl
-
-	ld a,0x00
-	ld (network_bytes_recv),a #Init network_bytes_recv
-	
-	pop hl
-	pop af
-
-	ei
-	reti
-
-	## -----------------------------------------------------------------
-network_handler_map:
-	## Were not actually interested in this data, ignore it
-	push af
+	## Now we can start receiving the map row
+	ld b,0x00
+network_handler_recv_map:	
 	call network_recv_byte
+	inc b
+	ld a,16
+	cp b
+	jp nz,network_handler_recv_map
 
-	ld a,(network_bytes_recv)
-	inc a
-	ld (network_bytes_recv),a
-	cp 16
-	jp nz,network_handler_map_end
-
-	push hl
-
-	ld hl,network_handler_extra
-	ld (ASCI0),hl
-	ld iy,network_recv_buffer #Set the initial buffer for the next procedure
-	ld (network_curr_iy),iy
-	pop hl
-
-network_handler_map_end:
-	pop af
-
-	ei
-	reti
+	## Ok, now we can start receiving the monsters etc
+	ld iy,network_recv_buffer
+	ld b,0x00		#Reset B to use as a counter again
 	
-	## -----------------------------------------------------------------
-network_handler_extra:
-	## Finally, we can check for jewels and ghosts!
-	push af
-	push bc
-	push hl
-
-	call network_recv_byte
-	ld b,a
-
-	ld a,(network_bytes_recv)
-	inc a
-	ld (network_bytes_recv),a
-
-	ld h,a
-	
+network_handler_recv_item:
 	ld a,(network_bytes_total)
-	cp h
-	jp z,network_handler_extra_change
-
-	## Load the rest of the bytes into the receive buffer
-	ld iy,(network_curr_iy)
-	ld (iy),b
+	cp b
+	jp z,network_handler_recv_item_end
+	
+	call network_recv_byte
+	ld (iy),a
 	inc iy
-	ld (network_curr_iy),iy
-	jp network_handler_extra_end
+	inc b
+	jp network_handler_recv_item
 	
-	## Change the handler to the next one
-network_handler_extra_change:
-	ld hl,network_handler_checksum
-	ld (ASCI0),hl
-
-network_handler_extra_end:
-	pop hl
-	pop bc
-	pop af
-
-	ei
-	reti
-	
-	## -------------------------------------------------------------
-network_handler_checksum:
-	## We dont care about the checksum right now
-	push af
-	push hl
+network_handler_recv_item_end:	
+	## Receive the checksum
 	call network_recv_byte
 
-	ld hl,network_handler_end
-	ld (ASCI0),hl
-
-	pop hl
-	pop af
-
-	ei
-	reti
-	
-	## -------------------------------------------------------------
-network_handler_end:
-	push af
-	push hl
+	## And finally, get the last byte
 	call network_recv_byte
-
 	cp 0x0d
-	jp z,network_handler_end_prem
+	jp nz,network_handler_error
 	
-	## First, calculate the number of items we got
-	## Actual (data bytes - 16)/2
-	ld a,(network_bytes_total)
-	sub 16
+network_handler_end:	
+	## Calculate how many monsters we actually have (bytes/2)
+	ld a,network_bytes_total
 	srl a
 	ld (network_item_count),a
+	jp z,network_handler_real_end
 	
-	ld hl,network_handler_end_end
+	## Now call the custom callback
+	push hl
+	ld hl,network_handler_callback_end
 	push hl
 	ld hl,(network_end_callback)
-	jp (hl)
-	
-network_handler_end_end:
-	## Set the handler back to the original one again
-	ld hl,network_handler_start
-	ld (ASCI0),hl
+	jp (hl)	
 
-network_handler_end_prem:	
+network_handler_callback_end:
 	pop hl
+	
+network_handler_real_end:
+	pop bc
 	pop af
-
 	ei
 	reti
+
+network_handler_error:
+	## OH TEH NOES - WE BROKE
+	## We should be safe enough to just jump back in to the return function
+	jp network_handler_real_end
 	
 	## -------------------------------------------------------
 	## Vars
@@ -309,5 +217,5 @@ network_end_callback:		.int default_callback
 network_bytes_recv:		.byte 0x00
 network_bytes_total:		.byte 0x00
 network_item_count:		.byte 0x00
-network_recv_buffer:		.space 100
-network_curr_iy:		.int 0x0000
+network_recv_buffer:		.space item_space
+
