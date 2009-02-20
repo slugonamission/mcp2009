@@ -19,7 +19,7 @@ mcp_packet_end=0x0D
 mcp_map_loc=0xBFF0 ##Row 0 is a test row - ignore it
 mcp_map_rows=65
 
-item_space=50
+item_space=100
 
 ##Global exports
 .globl network_init
@@ -30,5 +30,5 @@ item_space=50
 .globl network_set_end_callback
 .globl network_recv_buffer
 .globl network_item_count
-
+.globl network_bytes_total
 #endif

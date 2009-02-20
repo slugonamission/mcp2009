@@ -95,7 +95,7 @@ network_clear_errors:
 network_recv_byte:
 	call network_clear_errors
 	in0 a,(asci_stat_0)
-	and 0x84		#1000100 i.e. check for RDRF+DCD0
+	and 0x80		#1000000 i.e. check for RDRF+DCD0
 	cp 0x80
 	jp nz,network_recv_byte
 	
@@ -178,6 +178,9 @@ network_handler_row:
 	ld hl,network_handler_map
 	ld (ASCI0),hl
 
+	ld a,0x00
+	ld (network_bytes_recv),a #Init network_bytes_recv
+	
 	pop hl
 	pop af
 
@@ -197,9 +200,11 @@ network_handler_map:
 	jp nz,network_handler_map_end
 
 	push hl
+
 	ld hl,network_handler_extra
 	ld (ASCI0),hl
 	ld iy,network_recv_buffer #Set the initial buffer for the next procedure
+	ld (network_curr_iy),iy
 	pop hl
 
 network_handler_map_end:
@@ -229,8 +234,11 @@ network_handler_extra:
 	jp z,network_handler_extra_change
 
 	## Load the rest of the bytes into the receive buffer
+	ld iy,(network_curr_iy)
 	ld (iy),b
 	inc iy
+	ld (network_curr_iy),iy
+	jp network_handler_extra_end
 	
 	## Change the handler to the next one
 network_handler_extra_change:
@@ -267,8 +275,11 @@ network_handler_end:
 	push hl
 	call network_recv_byte
 
+	cp 0x0d
+	jp z,network_handler_end_prem
+	
 	## First, calculate the number of items we got
-	## Actual data bytes - 16 (map data)/2
+	## Actual (data bytes - 16)/2
 	ld a,(network_bytes_total)
 	sub 16
 	srl a
@@ -283,7 +294,8 @@ network_handler_end_end:
 	## Set the handler back to the original one again
 	ld hl,network_handler_start
 	ld (ASCI0),hl
-	
+
+network_handler_end_prem:	
 	pop hl
 	pop af
 
@@ -297,4 +309,5 @@ network_end_callback:		.int default_callback
 network_bytes_recv:		.byte 0x00
 network_bytes_total:		.byte 0x00
 network_item_count:		.byte 0x00
-network_recv_buffer:		.space item_space
+network_recv_buffer:		.space 100
+network_curr_iy:		.int 0x0000

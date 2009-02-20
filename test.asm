@@ -199,13 +199,15 @@ main_rtc_callback_end:
 	## Network data handler code
 	## -----------------------------------------------------------------------------
 main_network_end_callback:
+	push af
 	push hl
 	push bc
 	push de
 	
 	ld b,0x00		#The number of items we have currently handled
 
-	ld a,(network_item_count)
+ 	ld a,(network_item_count)
+	ld a,10
 	ld (item_recv_count),a
 	ld ix,network_recv_buffer
 
@@ -249,6 +251,7 @@ main_network_end_callback_loop:
 	pop de
 	pop bc
 	pop hl
+	pop af
 	ret
 	
 	## -----------------------------------------------------------------------------
