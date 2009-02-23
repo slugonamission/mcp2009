@@ -1,7 +1,10 @@
+#include "common.h"
 #include "tilt_prt.h"
 #include "display.h"
+#include "display_small.h"
 #include "tilt.h"
 #include "timer.h"
+#include "rtc.h"
 	
 	## --------------------------------------------------------------------------------
 	## Reload timer routine
@@ -89,15 +92,68 @@ shift_loop_end:
 	
 	pop bc			#Just incase the next jump actually happens
 	jp nz,PRT_restore_bc		#If it isnt 0, we cant move into it, jump out
-
+	
 	## Right then, we now need to update the pixels
 	## Turn the new pixel on
 	## Put HL to be 0 based again (i.e. dont account for the 0xc0 offset)
 	ld a,h
 	sub 0xc0
 	ld h,a
-
 	call disp_set_adp
+
+	## Now, we need to check if were going to collide with an enemy
+	ld l,0x00		#Simple counter
+	ld a,(monsters_count)
+	ld h,a
+	ld ix,monsters
+collide_monster_loop:
+	ld a,l
+	cp h			#Have we handled everything yet?
+	jp z,collide_monster_end
+
+	inc a
+	ld l,a
+	
+	ld a,(ix)
+	inc ix
+	cp b
+
+	## Load and increment again before testing the result of the last cp
+	ld a,(ix)
+	inc ix
+
+	jp nz,collide_monster_loop
+	cp c
+	call z,death
+	jp collide_monster_loop
+
+	
+collide_monster_end:
+	ld l,0x00
+	ld a,(ghosts_count)
+	ld h,a
+	ld ix,ghosts
+
+collide_ghost_loop:
+	ld a,l
+	cp h			#Have we handled everything yet?
+	jp z,collide_ghost_end
+	inc a
+	ld l,a
+	ld a,(ix)
+	inc ix
+	cp b
+
+	## Load and increment again before testing the result of the last cp
+	ld a,(ix)
+	inc ix
+
+	jp nz,collide_ghost_loop
+	cp c
+	call z,death
+	jp collide_ghost_loop
+	
+collide_ghost_end:		
 	ld a,b			#Load it with the new X value
 	and 0x07
 	cpl
@@ -174,3 +230,13 @@ tilt_right:
 	ld h,0xFF
 	ret
 
+death:
+	call rtc_stop
+	ld b,13
+	ld hl,dead
+	call clear_small
+	call write_seq_small
+	
+	halt
+
+dead:	"You have died"		#Len:13

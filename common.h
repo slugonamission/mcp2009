@@ -16,6 +16,14 @@ jewel_space=10
 	.globl delay
   	.globl init
 	.globl default_callback
+	.globl monsters
+	.globl monsters_count
+
+	.globl ghosts
+	.globl ghosts_count
+
+	.globl jewels
+	.globl jewels_count
 
 	.globl int_table
 	.globl INT1

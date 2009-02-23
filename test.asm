@@ -78,16 +78,16 @@ in_loop:
 	call disp_graphics_mode
 
 	ld hl,0xc000
-##	ld b,0xff
-##	call disp_write_b_seq
-##	ld b,0xff
-##	call disp_write_b_seq
-##	ld b,0xff
-##	call disp_write_b_seq
-##	ld b,0xff
-##	call disp_write_b_seq
-##	ld b,0x10
-##	call disp_write_b_seq
+	ld b,0xff
+	call disp_write_b_seq
+	ld b,0xff
+	call disp_write_b_seq
+	ld b,0xff
+	call disp_write_b_seq
+	ld b,0xff
+	call disp_write_b_seq
+	ld b,0x10
+	call disp_write_b_seq
 
 	## Show the time on the screen
 	call clear_small
@@ -196,7 +196,7 @@ main_rtc_callback_end:
 	pop bc
 	pop af
 	ret
-
+	
 	## -----------------------------------------------------------------------------
 	## Network data handler code
 	## -----------------------------------------------------------------------------
@@ -208,28 +208,118 @@ main_network_end_callback:
 	
 	ld b,0x00		#The number of items we have currently handled
 
+	ld a,monsters
+	ld (curr_monster_offset),a
+	ld a,ghosts
+	ld (curr_ghost_offset),a
+	
  	ld a,(network_item_count)
 	ld (item_recv_count),a
-	ld ix,network_recv_buffer
-	ld (curr_ix_val),ix
 
-main_network_end_clear_loop:
 	ld ix,monsters
-	ld iy,ghosts
-
-	ld a,0x00
+	ld hl,monsters_count
 	
+main_network_end_monster_clear_loop:
+	## Start clearing the old pixels
+	ld a,b
+	cp (hl)
+	jp z,main_network_end_monster_clear_end
+	inc a
+	ld b,a
 	
-main_network_end_callback_loop:	
-	## We now need to step through the recv buffer, looking for the data
-	ld ix,(curr_ix_val)
 	ld d,(ix)
 	inc ix
 	ld e,(ix)
 	inc ix
-	ld (curr_ix_val),ix
 
-	## Subtract one from the Y (I start rows from 0, the spec starts from 1)
+	push hl
+	## Now do the transform to clear the right pixel
+	ld h,0x10
+	ld l,e
+	mlt hl
+	ld a,d
+	srl d;srl d;srl d
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+	
+	and 0x07
+	cpl
+	or 0xF0
+	and 0xF7
+	call clear_to_send
+	out0 (disp_cmd),a
+
+	pop hl
+	
+	jp main_network_end_monster_clear_loop
+	
+main_network_end_monster_clear_end:
+	ld b,0x00
+
+	ld ix,ghosts
+	ld hl,ghosts_count
+	
+main_network_end_ghost_clear_loop:
+	## Start clearing the old pixels
+	ld a,b
+	cp (hl)
+	jp z,main_network_end_ghost_clear_end
+	inc a
+	ld b,a
+
+	ld d,(ix)
+	inc ix
+	ld e,(ix)
+	inc ix
+
+	push hl
+	## Now do the transform to clear the right pixel
+	ld h,0x10
+	ld l,e
+	mlt hl
+	ld a,d
+	srl d;srl d;srl d
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+	
+	and 0x07
+	cpl
+	or 0xF0
+	and 0xF7
+	call clear_to_send
+	out0 (disp_cmd),a
+
+	pop hl
+	
+	jp main_network_end_ghost_clear_loop
+	
+main_network_end_ghost_clear_end:
+	ld ix,network_recv_buffer
+	ld b,0x00
+
+	ld a,0x00
+	ld (monsters_count),a
+	ld (ghosts_count),a
+	
+main_network_end_callback_loop:	
+	## We now need to step through the recv buffer, looking for the data
+	ld d,(ix)
+	inc ix
+	ld e,(ix)
+	inc ix
+
+	ld a,e
+	and 0xC0
+	## We dont want to handle jewels here
+	cp 0x80
+	call z,store_ghost
+	cp 0xc0
+	call z,store_monster
+
 	ld a,e
 	and 0x3F		#Strip off the ident bits
 	ld e,a
@@ -263,6 +353,53 @@ main_network_end_callback_loop:
 	pop hl
 	pop af
 	ret
+
+store_jewel:
+	## We dont need to do anything here
+	ret
+
+store_ghost:
+	push af
+	
+	ld a,d
+	
+	ld hl,(curr_ghost_offset)
+	ld (hl),a
+	inc hl
+
+	ld a,e
+	and 0x3F		#Strip the ident bits
+	ld (hl),a
+	inc hl
+	ld (curr_ghost_offset),hl
+
+	ld a,(ghosts_count)
+	inc a
+	ld (ghosts_count),a
+
+	pop af
+	ret
+
+store_monster:
+	push af
+	ld a,d
+	
+	ld hl,(curr_monster_offset)
+	ld (hl),a
+	inc hl
+
+	ld a,e
+	and 0x3F		#Strip the ident bits
+	ld (hl),a
+	inc hl
+	ld (curr_monster_offset),hl
+
+	ld a,(monsters_count)
+	inc a
+	ld (monsters_count),a
+
+	pop af
+	ret
 	
 	## -----------------------------------------------------------------------------
 	## Messages
@@ -288,14 +425,14 @@ time_sec_2:	.byte '0'	#Now, to write the time, we can just tell the display to w
 	## Monster and ghost storage
 monsters:		.space monster_space
 monsters_count:		.byte 0x00
-curr_monster_offset:	.byte 0x00
+curr_monster_offset:	.int monsters
 	
 ghosts:			.space ghost_space
 ghosts_count:		.byte 0x00
-curr_ghost_offset:	.byte 0x00
+curr_ghost_offset:	.int ghosts
 	
 jewels:			.space jewel_space
-jewel_count:		.byte 0x00
+jewels_count:		.byte 0x00
 	
 item_recv_count:	.byte 0x00
 curr_ix_val:		.int 0x0000
