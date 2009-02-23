@@ -140,7 +140,9 @@ ASCI1:	 .int defh
 defh:	ei
 	reti
 	
-stub:	halt
+stub:	nop
+	ei
+	ret
 
 	## --------------------------------------------------------------------------
 	## RTC handler code
@@ -207,10 +209,16 @@ main_network_end_callback:
 	ld b,0x00		#The number of items we have currently handled
 
  	ld a,(network_item_count)
-	ld a,10
 	ld (item_recv_count),a
 	ld ix,network_recv_buffer
 	ld (curr_ix_val),ix
+
+main_network_end_clear_loop:
+	ld ix,monsters
+	ld iy,ghosts
+
+	ld a,0x00
+	
 	
 main_network_end_callback_loop:	
 	## We now need to step through the recv buffer, looking for the data
@@ -278,6 +286,16 @@ time_sec_1:	.byte '0'
 time_sec_2:	.byte '0'	#Now, to write the time, we can just tell the display to write from time_min_1
 
 	## Monster and ghost storage
-items:			.space item_count
+monsters:		.space monster_space
+monsters_count:		.byte 0x00
+curr_monster_offset:	.byte 0x00
+	
+ghosts:			.space ghost_space
+ghosts_count:		.byte 0x00
+curr_ghost_offset:	.byte 0x00
+	
+jewels:			.space jewel_space
+jewel_count:		.byte 0x00
+	
 item_recv_count:	.byte 0x00
 curr_ix_val:		.int 0x0000

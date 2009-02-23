@@ -135,24 +135,47 @@ network_set_end_callback:
 network_handler_start:
 	push af
 	push bc
+
+	ld c,0x00		#Checksum
+	
 	
 	call network_recv_byte
 	cp 0x55
 	jp nz,network_handler_real_end
 
+	## Checksumming
+	add a,c
+	and 0x7f
+	ld c,a
+	
 	## Ok, we have just had the start byte, now receive the length
 	call network_recv_byte
 	## Subtract the start(1), len(1), row(1), map data(16), checksum(1) and end(1) bytes = 21
 	sub 21
 	ld (network_bytes_total),a
 
+	## Checksumming
+	add a,21
+	add a,c
+	and 0x7f
+	ld c,a
+	
 	## Get the row number. We dont actually need this though
 	call network_recv_byte
 
+	add a,c
+	and 0x7f
+	ld c,a
 	## Now we can start receiving the map row
 	ld b,0x00
 network_handler_recv_map:	
 	call network_recv_byte
+
+	## Do the checksum here
+	add a,c
+	and 0x7f
+	ld c,a
+	
 	inc b
 	ld a,16
 	cp b
@@ -171,12 +194,22 @@ network_handler_recv_item:
 	ld (iy),a
 	inc iy
 	inc b
+
+	## Checksum again
+	add a,c
+	and 0x7f
+	ld c,a
+	
 	jp network_handler_recv_item
 	
 network_handler_recv_item_end:	
 	## Receive the checksum
 	call network_recv_byte
 
+	## Check the checksum
+	cp c
+	jp nz,network_handler_error #Checksums dont match, break out
+	
 	## And finally, get the last byte
 	call network_recv_byte
 	cp 0x0d
@@ -184,7 +217,7 @@ network_handler_recv_item_end:
 	
 network_handler_end:	
 	## Calculate how many monsters we actually have (bytes/2)
-	ld a,network_bytes_total
+	ld a,(network_bytes_total)
 	srl a
 	ld (network_item_count),a
 	jp z,network_handler_real_end

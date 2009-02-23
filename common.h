@@ -8,6 +8,10 @@ sp_loc=0xEFFF
 
 item_count=30
 
+monster_space=10
+ghost_space=10
+jewel_space=10
+
 	## Global exports
 	.globl delay
   	.globl init
