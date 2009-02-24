@@ -231,12 +231,17 @@ tilt_right:
 	ret
 
 death:
+	push bc
+	push hl
 	call rtc_stop
 	ld b,13
 	ld hl,dead
 	call clear_small
 	call write_seq_small
+
+	pop bc
+	pop hl
 	
-	halt
+	ret
 
 dead:	"You have died"		#Len:13

@@ -6,6 +6,7 @@
 #include "timer.h"
 #include "rtc.h"
 #include "tilt_prt.h"
+#include "network_callback.h"
 	
 top:
 	## Set everything up
@@ -23,7 +24,8 @@ top:
 	call timer_init
 	call network_init
 	call rtc_init
-
+	call main_network_end_callback_init
+	
 	ld a,'0'
 	ld (time_min_1),a
 	ld (time_min_2),a
@@ -198,210 +200,6 @@ main_rtc_callback_end:
 	ret
 	
 	## -----------------------------------------------------------------------------
-	## Network data handler code
-	## -----------------------------------------------------------------------------
-main_network_end_callback:
-	push af
-	push hl
-	push bc
-	push de
-	
-	ld b,0x00		#The number of items we have currently handled
-
-	ld a,monsters
-	ld (curr_monster_offset),a
-	ld a,ghosts
-	ld (curr_ghost_offset),a
-	
- 	ld a,(network_item_count)
-	ld (item_recv_count),a
-
-	ld ix,monsters
-	ld hl,monsters_count
-	
-main_network_end_monster_clear_loop:
-	## Start clearing the old pixels
-	ld a,b
-	cp (hl)
-	jp z,main_network_end_monster_clear_end
-	inc a
-	ld b,a
-	
-	ld d,(ix)
-	inc ix
-	ld e,(ix)
-	inc ix
-
-	push hl
-	## Now do the transform to clear the right pixel
-	ld h,0x10
-	ld l,e
-	mlt hl
-	ld a,d
-	srl d;srl d;srl d
-	ld e,d
-	ld d,0x00
-	add hl,de
-	call disp_set_adp
-	
-	and 0x07
-	cpl
-	or 0xF0
-	and 0xF7
-	call clear_to_send
-	out0 (disp_cmd),a
-
-	pop hl
-	
-	jp main_network_end_monster_clear_loop
-	
-main_network_end_monster_clear_end:
-	ld b,0x00
-
-	ld ix,ghosts
-	ld hl,ghosts_count
-	
-main_network_end_ghost_clear_loop:
-	## Start clearing the old pixels
-	ld a,b
-	cp (hl)
-	jp z,main_network_end_ghost_clear_end
-	inc a
-	ld b,a
-
-	ld d,(ix)
-	inc ix
-	ld e,(ix)
-	inc ix
-
-	push hl
-	## Now do the transform to clear the right pixel
-	ld h,0x10
-	ld l,e
-	mlt hl
-	ld a,d
-	srl d;srl d;srl d
-	ld e,d
-	ld d,0x00
-	add hl,de
-	call disp_set_adp
-	
-	and 0x07
-	cpl
-	or 0xF0
-	and 0xF7
-	call clear_to_send
-	out0 (disp_cmd),a
-
-	pop hl
-	
-	jp main_network_end_ghost_clear_loop
-	
-main_network_end_ghost_clear_end:
-	ld ix,network_recv_buffer
-	ld b,0x00
-
-	ld a,0x00
-	ld (monsters_count),a
-	ld (ghosts_count),a
-	
-main_network_end_callback_loop:	
-	## We now need to step through the recv buffer, looking for the data
-	ld d,(ix)
-	inc ix
-	ld e,(ix)
-	inc ix
-
-	ld a,e
-	and 0xC0
-	## We dont want to handle jewels here
-	cp 0x80
-	call z,store_ghost
-	cp 0xc0
-	call z,store_monster
-
-	ld a,e
-	and 0x3F		#Strip off the ident bits
-	ld e,a
-
-	## Standard display procedure
-	ld h,0x10
-	ld l,e
-	mlt hl
-	
-	ld a,d
-	srl d;srl d;srl d
-	ld e,d
-	ld d,0x00
-	add hl,de
-	call disp_set_adp
-	
-	and 0x07
-	cpl
-	or 0xF8
-	call clear_to_send
-	out0 (disp_cmd),a
-
-	inc b
-	ld a,(item_recv_count)
-	cp b
-
-	jp nz,main_network_end_callback_loop
-
-	pop de
-	pop bc
-	pop hl
-	pop af
-	ret
-
-store_jewel:
-	## We dont need to do anything here
-	ret
-
-store_ghost:
-	push af
-	
-	ld a,d
-	
-	ld hl,(curr_ghost_offset)
-	ld (hl),a
-	inc hl
-
-	ld a,e
-	and 0x3F		#Strip the ident bits
-	ld (hl),a
-	inc hl
-	ld (curr_ghost_offset),hl
-
-	ld a,(ghosts_count)
-	inc a
-	ld (ghosts_count),a
-
-	pop af
-	ret
-
-store_monster:
-	push af
-	ld a,d
-	
-	ld hl,(curr_monster_offset)
-	ld (hl),a
-	inc hl
-
-	ld a,e
-	and 0x3F		#Strip the ident bits
-	ld (hl),a
-	inc hl
-	ld (curr_monster_offset),hl
-
-	ld a,(monsters_count)
-	inc a
-	ld (monsters_count),a
-
-	pop af
-	ret
-	
-	## -----------------------------------------------------------------------------
 	## Messages
 	## -----------------------------------------------------------------------------
 blank_line:	"                " #Len: 16
@@ -433,6 +231,10 @@ curr_ghost_offset:	.int ghosts
 	
 jewels:			.space jewel_space
 jewels_count:		.byte 0x00
+jewels_collected:	.byte 0x00
+curr_jewel_offset:	.int jewels
 	
 item_recv_count:	.byte 0x00
 curr_ix_val:		.int 0x0000
+
+game_state:		.byte game_running
