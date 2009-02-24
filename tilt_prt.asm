@@ -154,6 +154,33 @@ collide_ghost_loop:
 	jp collide_ghost_loop
 	
 collide_ghost_end:		
+	ld l,0x00
+	ld a,(jewels_count)
+	ld h,a
+	ld ix,jewels
+
+collide_jewel_loop:
+	ld a,l
+	cp h
+	jp z,collide_jewel_end
+	inc a
+	ld l,a
+	ld a,(ix)
+	inc ix
+	cp b
+
+	ld a,(ix)
+	inc ix
+
+	jp nz,collide_jewel_loop
+	cp 0xFF			#Ignore this jewel, it has been captured
+	jp z,collide_jewel_loop
+	cp c
+	call z,grab_jewel
+	jp collide_jewel_loop
+
+	
+collide_jewel_end:	
 	ld a,b			#Load it with the new X value
 	and 0x07
 	cpl
@@ -230,18 +257,56 @@ tilt_right:
 	ld h,0xFF
 	ret
 
-death:
-	push bc
-	push hl
-	call rtc_stop
-	ld b,13
-	ld hl,dead
-	call clear_small
-	call write_seq_small
+death:	
+	push af
 
-	pop bc
-	pop hl
+	ld a,game_dead
+	ld (game_state),a
 	
+	pop af
 	ret
 
-dead:	"You have died"		#Len:13
+grab_jewel:
+	push af
+	push bc
+	push hl
+
+	## IX should point to the memory location 2 past what the jewel
+	## we just hit is
+	## Dec it twice to point to the start again
+	dec ix
+	dec ix
+	ld a,0xFF
+	ld (ix),a
+	inc ix
+	ld (ix),a
+
+	ld a,s_line_2_offset+8
+	call set_adp_small
+	
+	ld a,(jewels_count)	#WHY CANT WE DO LD B,(FOO)?!
+	ld b,a
+	
+	ld a,(jewels_collected)
+	inc a
+	ld (jewels_collected),a
+	cp b
+	jp nz,grab_jewel_writeout
+
+	## OMG WE FINISHED
+	ld a,game_complete
+	ld (game_state),a
+	
+	jp grab_jewel_exit
+	
+	
+grab_jewel_writeout:	
+	## Now output the new jewels value to the screen
+	add a,48
+	call write_small
+
+grab_jewel_exit:
+	pop hl
+	pop bc
+	pop af
+	ret

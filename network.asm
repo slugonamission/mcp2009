@@ -223,6 +223,12 @@ network_handler_end:
 	jp z,network_handler_real_end
 	
 	## Now call the custom callback
+	## The callback will generally need BC too, restore it
+	## Luckily - it should be on the top of the stack
+	## Pop it back in, and push it again so the rest of the code works like normal
+	pop bc
+	push bc
+	
 	push hl
 	ld hl,network_handler_callback_end
 	push hl

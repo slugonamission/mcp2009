@@ -132,7 +132,7 @@ main_network_end_callback_loop:
 	inc ix
 
 	ld a,e
-	and 0xC0
+	and 0xC0		#Select just the ident bits
 
 	## Figure out which store procedure to call
 	cp 0x40
@@ -185,6 +185,49 @@ network_callback_display_end:
 
 	jp nz,main_network_end_callback_loop
 
+	## Finally, display the jewels
+	ld ix,jewels
+	ld b,0x00
+	ld hl,jewels_count
+
+network_callback_display_jewels:
+	ld a,b
+	cp (hl)
+	jp z,network_callback_display_jewels_end
+	inc a
+	ld b,a
+	
+	ld d,(ix)
+	inc ix
+	ld e,(ix)
+	inc ix
+	ld a,e
+	cp 0xFF
+	jp z,network_callback_display_jewels
+
+	## Done the checks, display the jewel
+	push hl
+	
+	ld h,0x10
+	ld l,e
+	mlt hl
+	ld a,d
+	srl d;srl d;srl d
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+	
+	and 0x07
+	cpl
+	or 0xF8
+	call clear_to_send
+	out0 (disp_cmd),a
+
+	pop hl
+	jp network_callback_display_jewels
+	
+network_callback_display_jewels_end:		
 	## We have all the items
 	## Test collisions with enemies
 	pop bc

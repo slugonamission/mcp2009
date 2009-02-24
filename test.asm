@@ -96,6 +96,13 @@ in_loop:
 	ld hl,timer
 	ld b,11
 	call write_seq_small
+
+	## Show the number of jewels collected on the screen
+	ld a,s_line_2_offset
+	call set_adp_small
+	ld hl,jewel_msg
+	ld b,9
+	call write_seq_small
 	
 	## We should have the map, enter the main game loop
 	## B = X axis
@@ -119,9 +126,41 @@ in_loop:
 	
 	ei
 	
-	## ZOMG INFINITE LOOP
-loop:	nop
+	## Main game state checking loop
+loop:	ld a,(game_state)
+	cp game_dead
+	jp z,loop_dead
+	cp game_complete
+	jp z,loop_complete
 	jp loop
+
+	## Were safe enough to make these calls blocking, after all
+	## we dont want anything to actually be happening while were dead...
+loop_dead:
+	di
+
+	call rtc_stop
+	call clear_small
+	ld hl,dead
+	ld b,16
+	call write_seq_small
+
+loop_dead_inner:
+	nop
+	jp loop_dead_inner
+
+loop_complete:
+	di
+
+	call rtc_stop
+	call clear_small
+	ld hl,complete
+	ld b,16
+	call write_seq_small
+
+loop_complete_inner:
+	nop
+	jp loop_complete_inner
 
 	## -------------------------------------------------------------------------------
 	## Interrupts
@@ -153,6 +192,7 @@ main_rtc_callback:
 	push af
 	push bc
 	push hl
+
 	ld a,(time_sec_2)
 	inc a
 	cp 0x3A			#0x3A corresponds to '9'+1
@@ -208,6 +248,11 @@ start:	        "Press any button" #Len: 16
 start_2:	"    to begin    " #Len: 16
 loading:	"Please flip the switch" #Len:22
 done:		"     Loaded     " #Len: 16
+jewel_msg:	"Jewels: 0"        #Len:9
+
+dead:		"  You are dead  " #Len:16
+complete:	"    You won!    " #Len:16
+
 timer:          "Time: "	   #Len: 11 (inc digits (below)) - THIS MUST BE THE LAST MESSAGE
 	
 	## ----------------------------------------------------------------------------
