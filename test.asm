@@ -7,6 +7,7 @@
 #include "rtc.h"
 #include "tilt_prt.h"
 #include "network_callback.h"
+#include "graphics.h"
 	
 top:
 	## Set everything up
@@ -25,6 +26,9 @@ top:
 	call network_init
 	call rtc_init
 	call main_network_end_callback_init
+
+	ld a,game_running
+	ld (game_state),a
 	
 	ld a,'0'
 	ld (time_min_1),a
@@ -158,6 +162,28 @@ loop_complete:
 	ld b,16
 	call write_seq_small
 
+	ld a,s_line_2_offset
+	call set_adp_small
+	ld hl,your_time
+	ld b,16
+	call write_seq_small
+	
+	call disp_clear_graphics
+	ld hl,0x0000
+	call disp_set_adp
+	
+	ld hl,cake
+	ld b,0xff
+	call disp_write_b_seq
+	ld b,0xff
+	call disp_write_b_seq
+	ld b,0xff
+	call disp_write_b_seq
+	ld b,0xff
+	call disp_write_b_seq
+	ld b,0x10
+	call disp_write_b_seq
+	
 loop_complete_inner:
 	nop
 	jp loop_complete_inner
@@ -252,7 +278,8 @@ jewel_msg:	"Jewels: 0"        #Len:9
 
 dead:		"  You are dead  " #Len:16
 complete:	"    You won!    " #Len:16
-
+your_time:	"Your " #Len:16 (inc time below)
+	
 timer:          "Time: "	   #Len: 11 (inc digits (below)) - THIS MUST BE THE LAST MESSAGE
 	
 	## ----------------------------------------------------------------------------

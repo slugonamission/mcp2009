@@ -10,6 +10,7 @@ main_network_end_callback_init:
 	push af
 	ld a,0x00
 	ld (received_jewels),a
+	ld (jewels_count),a
 	pop af
 
 	ret
