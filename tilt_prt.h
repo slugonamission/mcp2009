@@ -2,6 +2,5 @@
 #define __TILT_PRT_H__
 
 .globl PRT_routine
-.globl death
 
 #endif

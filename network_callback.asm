@@ -234,58 +234,9 @@ network_callback_display_jewels_end:
 	pop bc
 	push bc			#Restore BC, and also push it back again for the POP BC later
 
-	ld l,0x00		#Simple counter
-	ld a,(monsters_count)
-	ld h,a
-	ld ix,monsters
-collide_monster_loop:
-	ld a,l
-	cp h			#Have we handled everything yet?
-	jp z,collide_monster_end
-
-	inc a
-	ld l,a
-	
-	ld a,(ix)
-	inc ix
-	cp b
-
-	## Load and increment again before testing the result of the last cp
-	ld a,(ix)
-	inc ix
-
-	jp nz,collide_monster_loop
-	cp c
-	call z,death
-	jp collide_monster_loop
+	call collide_item_check
 
 	
-collide_monster_end:
-	ld l,0x00
-	ld a,(ghosts_count)
-	ld h,a
-	ld ix,ghosts
-
-collide_ghost_loop:
-	ld a,l
-	cp h			#Have we handled everything yet?
-	jp z,collide_ghost_end
-	inc a
-	ld l,a
-	ld a,(ix)
-	inc ix
-	cp b
-
-	## Load and increment again before testing the result of the last cp
-	ld a,(ix)
-	inc ix
-
-	jp nz,collide_ghost_loop
-	cp c
-	call z,death
-	jp collide_ghost_loop
-	
-collide_ghost_end:			
 	ld a,0xFF
 	ld (received_jewels),a	#Set the flag to say we have received the jewels
 

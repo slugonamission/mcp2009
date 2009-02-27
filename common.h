@@ -21,6 +21,7 @@ game_complete=0x02
 	.globl delay
   	.globl init
 	.globl default_callback
+	.globl collide_item_check
 
 	.globl monsters
 	.globl monsters_count

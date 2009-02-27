@@ -36,6 +36,8 @@ top:
 	ld (time_sec_1),a
 	ld (time_sec_2),a
 
+	ld a,0			#Reset the menu item selected to 0
+	ld (menu_sel),a
 	
 	call disp_clear_text
 	call disp_clear_graphics
@@ -48,23 +50,121 @@ top:
 	call disp_write_seq
 	ld hl,tilt_game
 	call disp_write_seq
-	ld hl,blank_line
+	ld hl,sep
 	call disp_write_seq
-	ld hl,start
+	ld hl,play_sel
 	call disp_write_seq
-	ld hl,start_2
+	ld hl,view_scores
+	call disp_write_seq
+	ld hl,exit
 	call disp_write_seq
 
 	ld hl,tilt_game
 	call write_seq_small
 
-	
 in_loop:
-	in0 a,(0xF4)
-	and 0x88
+	in0 a,(0xF4)		#Get the state of the systems buttons
+	and 0x0E
+	cp 0x0E			#Clicked in
+	jp z,menu_click
+
+	cp 0x04
+	jp z,menu_up
+
+	cp 0x02
+	jp z,menu_down
+
+	jp in_loop
+	
+menu_up:
+	ld a,(menu_sel)
 	cp 0x00
 	jp z,in_loop
+	dec a
+	ld (menu_sel),a
 
+	ld h,0x10
+	ld l,a
+	mlt hl			#The line offset we need to change
+	push hl
+	push hl
+	
+	ld bc,0x1430
+	add hl,bc
+	call disp_set_adp	#Set the address pointer to the new line
+
+	pop hl
+	ld bc,play_sel
+	add hl,bc		#Add on the offset into the messages
+	ld b,16
+	call disp_write_seq
+
+	## Now set the prev line back again
+	pop hl
+	ld bc,0x0010
+	add hl,bc
+	## Conviently, the ADP will already be on the next line ;)
+	ld bc,play
+	add hl,bc
+	ld b,16
+	call disp_write_seq
+
+	halt			#We really shouldnt exploit the RTC like this, but oh well
+	
+	jp in_loop
+	
+menu_click:
+	ld a,(menu_sel)
+	cp 0x00
+	jp z,game_start
+	cp 0x02
+	jp z,game_reset
+
+	jp in_loop
+	
+menu_down:
+	ld a,(menu_sel)
+	cp 0x02
+	jp z,in_loop
+	
+	ld h,0x10
+	ld l,a
+	mlt hl			#The line offset (prev line) we need to change
+	push hl
+	push hl
+	
+	inc a
+	ld (menu_sel),a		#And now increment the menu item selected number thingy
+	
+	ld bc,0x1430
+	add hl,bc
+	call disp_set_adp	#Set the address pointer to the line
+
+	pop hl
+	ld bc,play
+	add hl,bc		#Add on the offset into the messages
+	ld b,16
+	call disp_write_seq
+
+	## Now set the next line to what is needed
+	pop hl
+	ld bc,0x0010
+	add hl,bc
+	## Conviently, the ADP will already be on the next line ;)
+	ld bc,play_sel
+	add hl,bc
+	ld b,16
+	call disp_write_seq
+
+	halt 			#We really shouldnt exploit the RTC like this, but oh well
+	
+	jp in_loop
+
+
+	## ----------------------------------------------------------------------
+	## Start of the game
+	## ----------------------------------------------------------------------
+game_start:	
 	## Start the game!
 	call disp_clear_text
 
@@ -188,6 +288,17 @@ loop_complete_inner:
 	nop
 	jp loop_complete_inner
 
+	## ------------------------------------------------------------------------
+	## Highscore display routine
+	## ------------------------------------------------------------------------
+
+	## ------------------------------------------------------------------------
+	## Reset back to monitor
+	## ------------------------------------------------------------------------
+game_reset:
+	nop
+	rst 0x0000
+	
 	## -------------------------------------------------------------------------------
 	## Interrupts
 	## -------------------------------------------------------------------------------
@@ -269,11 +380,21 @@ main_rtc_callback_end:
 	## Messages
 	## -----------------------------------------------------------------------------
 blank_line:	"                " #Len: 16
-tilt_game:	"   Tilt Game    " #Len: 16
-start:	        "Press any button" #Len: 16
-start_2:	"    to begin    " #Len: 16
+tilt_game:	"    MCP 2009    " #Len: 16
+sep:	        "----------------" #Len: 16
+	## Menu items
+play:		"      Play      " #Len: 16
+view_scores:	" Display Scores " #Len: 16
+exit:		"      Exit      " #Len: 16
+	## Menu items (selected)
+play_sel:	"     >Play<     " #Len: 16
+view_scores_sel:">Display Scores<" #Len: 16
+exit_sel:	"     >Exit<     " #Len: 16
+
+	## Loading stuffs
 loading:	"Please flip the switch" #Len:22
 done:		"     Loaded     " #Len: 16
+	## Game progress stuffs
 jewel_msg:	"Jewels: 0"        #Len:9
 
 dead:		"  You are dead  " #Len:16
@@ -291,6 +412,9 @@ time_min_2:	.byte '0'
 time_sep:	.byte ':' 	
 time_sec_1:	.byte '0'
 time_sec_2:	.byte '0'	#Now, to write the time, we can just tell the display to write from time_min_1
+
+	## Which menu item have we selected?
+menu_sel:		.byte 0x00
 
 	## Monster and ghost storage
 monsters:		.space monster_space
