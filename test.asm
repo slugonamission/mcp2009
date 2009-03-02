@@ -38,6 +38,7 @@ top:
 
 	ld a,0			#Reset the menu item selected to 0
 	ld (menu_sel),a
+	ld (jewels_collected),a
 	
 	call disp_clear_text
 	call disp_clear_graphics
