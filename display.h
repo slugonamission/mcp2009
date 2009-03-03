@@ -5,6 +5,9 @@
 disp_data=0xF0
 disp_cmd=0xF1
 
+disp_gfx_home=0x0000
+disp_text_home=0x0400
+
 ##Exports
 .globl disp_init
 .globl disp_set_adp

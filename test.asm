@@ -90,7 +90,7 @@ menu_up:
 	push hl
 	push hl
 	
-	ld bc,0x1430
+	ld bc,disp_text_home+0x0030
 	add hl,bc
 	call disp_set_adp	#Set the address pointer to the new line
 
@@ -137,7 +137,7 @@ menu_down:
 	inc a
 	ld (menu_sel),a		#And now increment the menu item selected number thingy
 	
-	ld bc,0x1430
+	ld bc,disp_text_home+0x0030
 	add hl,bc
 	call disp_set_adp	#Set the address pointer to the line
 
@@ -180,7 +180,7 @@ game_start:
 	call write_seq_small
 
 	call disp_clear_text
-	ld hl,0x0000
+	ld hl,disp_gfx_home
 	call disp_set_adp
 	call disp_graphics_mode
 
@@ -250,8 +250,17 @@ loop_dead:
 	ld b,16
 	call write_seq_small
 
+	ld a,s_line_2_offset
+	call set_adp_small
+	
+	ld hl,btn_cont
+	ld b,16
+	call write_seq_small
+
 loop_dead_inner:
-	nop
+	in0 a,(0xf4)
+	and 0x88
+	jp nz,top
 	jp loop_dead_inner
 
 loop_complete:
@@ -270,7 +279,7 @@ loop_complete:
 	call write_seq_small
 	
 	call disp_clear_graphics
-	ld hl,0x0000
+	ld hl,disp_gfx_home
 	call disp_set_adp
 	
 	ld hl,cake
@@ -400,6 +409,9 @@ jewel_msg:	"Jewels: 0"        #Len:9
 
 dead:		"  You are dead  " #Len:16
 complete:	"    You won!    " #Len:16
+
+btn_cont:	" Press any btn  " #Len: 16
+
 your_time:	"Your " #Len:16 (inc time below)
 	
 timer:          "Time: "	   #Len: 11 (inc digits (below)) - THIS MUST BE THE LAST MESSAGE

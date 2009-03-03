@@ -19,7 +19,7 @@ disp_init:
 	ld a,0x00		
 	out0 (disp_data),a
 	call clear_to_send
-	ld a,0x14
+	ld a,0x04
 	out0 (disp_data),a
 	call clear_to_send
 	ld a,0x40
@@ -141,7 +141,7 @@ disp_graphics_mode:
 disp_clear_text:
 	push af
 	push hl
-	ld hl,0x1400
+	ld hl,disp_text_home
 	call disp_set_adp
 disp_clear_text_inner:	
 	ld a,h
@@ -156,7 +156,7 @@ disp_clear_text_inner:
 disp_clear_text_out:
 	## Were done!
 	## Set the ADP back to text start
-	ld hl,0x1400	
+	ld hl,disp_text_home
 	call disp_set_adp
 
 	## Exit the procedure
@@ -167,18 +167,18 @@ disp_clear_text_out:
 disp_clear_graphics:
 	push af
 	push hl
-	ld hl,0x0000
+	ld hl,disp_gfx_home
 	call disp_set_adp
 disp_clear_graphics_inner:
 	ld a,h
-	cp 0x14
+	cp 0x04
 	jp z,disp_clear_graphics_end
 	ld a,0x00
 	call disp_write_byte
 	inc hl
 	jp disp_clear_graphics_inner
 disp_clear_graphics_end:
-	ld bc,0x0000
+	ld bc,disp_gfx_home
 	call disp_set_adp
 	pop hl
 	pop af
