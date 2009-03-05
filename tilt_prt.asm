@@ -94,6 +94,7 @@ shift_loop_end:
 	jp nz,PRT_restore_bc		#If it isnt 0, we cant move into it, jump out
 	
 	## Right then, we now need to update the pixels
+	push hl
 	ld hl,(update_player_jump)
 	jp (hl)
 
@@ -178,6 +179,7 @@ tilt_right:
 update_player_jump:	.int update_player_out
 	
 update_player_in:
+	pop hl			#We need to do this or everything will break
 	## We need to play with BC a bit
 	push de
 	push bc
@@ -223,6 +225,8 @@ update_player_in:
 update_player_out:
 	## Turn the new pixel on
 	## Put HL to be 0 based again (i.e. dont account for the 0xc0 offset)
+	pop hl
+
 	ld a,h
 	sub 0xc0
 	ld h,a

@@ -232,7 +232,7 @@ game_start:
 	ei
 
 	## Quick test - zoom in
-	call zoom_in
+##	call zoom_in
 
 	
 	## Main game state checking loop

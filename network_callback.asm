@@ -132,53 +132,10 @@ main_network_end_callback_loop:
 	ld e,(ix)
 	inc ix
 
-	ld a,e
-	and 0xC0		#Select just the ident bits
-
-	## Figure out which store procedure to call
-	cp 0x40
-	call z,store_jewel
-	jp z,network_jewel_display_callback
+	## Jump to the relevant routine to display the items
+	ld hl,(network_callback_display_items_jump)
+	jp (hl)
 	
-	cp 0x80
-	call z,store_ghost
-	jp z,network_callback_display
-
-	cp 0xc0
-	call z,store_monster
-	jp z,network_callback_display
-
-
-network_jewel_display_callback:
-	ld h,a			#Store A somewhere convinent for now
-	ld a,(received_jewels)
-	cp 0xFF
-	ld a,h
-	jp z,network_callback_display_end
-	
-network_callback_display:	
-	ld a,e
-	and 0x3F		#Strip off the ident bits
-	ld e,a
-
-	## Standard display procedure
-	ld h,0x10
-	ld l,e
-	mlt hl
-	
-	ld a,d
-	srl d;srl d;srl d
-	ld e,d
-	ld d,0x00
-	add hl,de
-	call disp_set_adp
-	
-	and 0x07
-	cpl
-	or 0xF8
-	call clear_to_send
-	out0 (disp_cmd),a
-
 network_callback_display_end:	
 	inc b
 	ld a,(item_recv_count)
@@ -318,4 +275,77 @@ store_monster:
 	ret
 	
 
+network_callback_display_items_jump:	.int network_callback_display_items_out
+
+	## Code refactoring for the next part
+network_callback_display_items_out:
+	ld a,e
+ 	and 0xC0		#Select just the ident bits
+
+	## Figure out which store procedure to call
+	cp 0x40
+	call z,store_jewel
+	jp z,network_jewel_display_callback_out
+	
+	cp 0x80
+	call z,store_ghost
+	jp z,network_callback_display_out
+
+	cp 0xc0
+	call z,store_monster
+	jp z,network_callback_display_out
+
+
+network_jewel_display_callback_out:
+	ld h,a			#Store A somewhere convinent for now
+	ld a,(received_jewels)
+	cp 0xFF
+	ld a,h
+	jp z,network_callback_display_end
+	
+network_callback_display_out:	
+	ld a,e
+	and 0x3F		#Strip off the ident bits
+	ld e,a
+
+	## Standard display procedure
+	ld h,0x10
+	ld l,e
+	mlt hl
+	
+	ld a,d
+	srl d;srl d;srl d
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+	
+	and 0x07
+	cpl
+	or 0xF8
+	call clear_to_send
+	out0 (disp_cmd),a
+
+	jp network_callback_display_end
+	
+network_callback_display_items_in:
+	jp network_callback_display_end
+	
+
+network_callback_set_in:
+	push hl
+	ld hl,network_callback_display_items_in
+	ld (network_callback_display_items_jump),hl
+	pop hl
+
+	ret
+
+network_callback_set_out:
+	push hl
+	ld hl,network_callback_display_items_out
+	ld (network_callback_display_items_jump),hl
+	pop hl
+
+	ret
+	
 received_jewels:	.byte 0x00

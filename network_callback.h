@@ -4,4 +4,7 @@
 .globl main_network_end_callback_init
 .globl main_network_end_callback
 
+.globl network_callback_set_in
+.globl network_callback_set_out
+
 #endif
