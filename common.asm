@@ -3,7 +3,9 @@
 
 #include "common.h"
 #include "display_small.h"
-
+#include "display.h"
+#include "tilt_prt.h"
+	
 	## Standard system initialisation
 	## Destroys: probably everything. You shouldnt call this
 	## and assume ANYTHING will be the same after.
@@ -183,3 +185,135 @@ grab_jewel_exit:
 default_callback:
 	nop
 	ret
+
+zoom_in:
+	## Interrupts could cause some problems here
+	di
+
+	## This is going to take a lot of messing around to do properly
+	push af
+	push hl
+	push bc
+	
+	## Switch to text mode
+	call disp_text_mode
+
+	ld hl,disp_text_home
+	call disp_set_adp
+	
+	## We dont need to bother clearing, we will overwrite it all anyway
+	## Set the pointer to the start of the map
+	## Map start = 0xc000
+	## Map end = 0xc400
+	ld hl,0xc000
+
+	## We might aswell turn on auto mode for this to make life easier
+	call disp_enable_auto_write
+	
+	## Now we need to start reading bytes from the map. For each bit, we need to output the
+	## respective bit to the screen.
+zoom_in_inner:
+	ld a,h
+	cp 0xc4
+	jp z,zoom_in_exit
+
+	ld a,(hl)
+	ld b,a
+	inc hl
+	
+	## We now have one of the display bytes in A/B
+	## A quick and dirty hack here. We shall just compare each bit and output respectively
+	## LOOP UNROLLING!!! (and no nasty shift+compare stuff)
+zoom_in_bit_loop:
+	bit 7,b			#Bit C of byte B. Stupid instruction/operand ordering
+	call z,zoom_in_dispatch_0
+	call nz,zoom_in_dispatch_1
+	bit 6,b			#Bit C of byte B. Stupid instruction/operand ordering
+	call z,zoom_in_dispatch_0
+	call nz,zoom_in_dispatch_1
+	bit 5,b			#Bit C of byte B. Stupid instruction/operand ordering
+	call z,zoom_in_dispatch_0
+	call nz,zoom_in_dispatch_1
+	bit 4,b			#Bit C of byte B. Stupid instruction/operand ordering
+	call z,zoom_in_dispatch_0
+	call nz,zoom_in_dispatch_1
+	bit 3,b			#Bit C of byte B. Stupid instruction/operand ordering
+	call z,zoom_in_dispatch_0
+	call nz,zoom_in_dispatch_1
+	bit 2,b			#Bit C of byte B. Stupid instruction/operand ordering
+	call z,zoom_in_dispatch_0
+	call nz,zoom_in_dispatch_1
+	bit 1,b			#Bit C of byte B. Stupid instruction/operand ordering
+	call z,zoom_in_dispatch_0
+	call nz,zoom_in_dispatch_1
+	bit 0,b			#Bit C of byte B. Stupid instruction/operand ordering
+	call z,zoom_in_dispatch_0
+	call nz,zoom_in_dispatch_1
+	
+	jp zoom_in_inner
+
+zoom_in_exit:
+	## Turn off auto mode again
+	call disp_disable_auto_write	
+	
+	## Write the player pos out
+	pop bc			#Restore BC
+	push bc
+	
+	## Sod it, the monsters/ghosts/jewels will be written on
+	## the next network packet
+	## Get the offset for the row
+	ld h,128
+	ld l,c
+	mlt hl
+
+	## Add on for the column
+	ld c,b
+	ld b,0x00
+	add hl,bc
+
+	## And move to it
+	call disp_set_adp
+
+	## Now, fire off a P (for player)
+	## Were still in auto mode, just fire it down the lines
+	ld a,'P'
+	call disp_write_char
+
+	## We now need to change the text area
+	ld a,128
+	call clear_to_send
+	out0 (disp_data),a
+
+	ld a,0x00
+	call clear_to_send
+	out0 (disp_data),a
+
+	ld a,0x41
+	call clear_to_send
+	out0 (disp_cmd),a
+
+	## Update the PRT routine to use the new movement code
+	call PRT_set_in	
+	
+	pop bc
+	pop hl
+	pop af
+
+	ei
+	ret
+
+zoom_in_dispatch_0:
+	ld a,0x00
+	call disp_send_byte
+	ret
+
+zoom_in_dispatch_1:
+	ld a,'W'-32
+	call disp_send_byte	
+	ret
+	
+zoom_out:
+	nop;ret
+
+	

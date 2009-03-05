@@ -6,7 +6,7 @@ disp_data=0xF0
 disp_cmd=0xF1
 
 disp_gfx_home=0x0000
-disp_text_home=0x0400
+disp_text_home=0x0000
 
 ##Exports
 .globl disp_init
@@ -20,5 +20,9 @@ disp_text_home=0x0400
 .globl disp_graphics_mode
 .globl disp_write_b_seq
 .globl clear_to_send
+.globl disp_enable_auto_write
+.globl disp_disable_auto_write
+.globl disp_send_byte
+.globl disp_set_text_home
 
 #endif

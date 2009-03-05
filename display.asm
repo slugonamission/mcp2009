@@ -19,7 +19,7 @@ disp_init:
 	ld a,0x00		
 	out0 (disp_data),a
 	call clear_to_send
-	ld a,0x04
+	ld a,0x00
 	out0 (disp_data),a
 	call clear_to_send
 	ld a,0x40
@@ -145,7 +145,7 @@ disp_clear_text:
 	call disp_set_adp
 disp_clear_text_inner:	
 	ld a,h
-	cp 0x18
+	cp 0x04
 	jp z,disp_clear_text_out
 	## Else, write out a blank char to the screen
 	ld a,0x20		#32 = ASCII space
@@ -189,7 +189,7 @@ disp_clear_graphics_end:
 	## Destroys: A
 disp_write_char:
 	## Display chars = ASCII - 0x20
-	sub 0x20		
+	sub 0x20
 	call clear_to_send
 	out0 (disp_data),a
 	call clear_to_send
@@ -256,6 +256,52 @@ disp_write_b_seq_end:
 	pop af
 	ret	
 
+disp_enable_auto_write:
+	push af
+	ld a,0xB0
+	call clear_to_send
+	out0 (disp_cmd),a
+	pop af
+
+	ret
+
+disp_disable_auto_write:
+	push af
+	ld a,0xB2
+	call clear_to_send
+	out0 (disp_cmd),a
+	pop af
+
+	ret
+
+	## Simply sends a byte of data to the display. Useful in auto-write mode
+	## Byte to send must be in A
+disp_send_byte:
+	call clear_to_send_auto
+	out0 (disp_data),a
+
+	ret
+
+	## Sets the text home
+	## The desired text home address should be in HL
+disp_set_text_home:
+	push af
+
+	ld a,l
+	call clear_to_send
+	out0 (disp_data),a
+
+	ld a,h
+	call clear_to_send
+	out0 (disp_data),a
+
+	ld a,0x40
+	call clear_to_send
+	out0 (disp_cmd),a
+
+	pop af
+	ret
+	
 	## Checks the LCD status registers to check we can send data OK
 clear_to_send:
 	push af
@@ -265,4 +311,15 @@ clear_to_send_inner:
 	cp 0x03
 	jp nz,clear_to_send_inner
 	pop af
+	ret
+
+clear_to_send_auto:
+	push af
+clear_to_send_auto_inner:
+	in0 a,(disp_cmd)
+	and 0x08
+	cp 0x08
+	jp nz,clear_to_send_auto_inner
+	pop af
+
 	ret

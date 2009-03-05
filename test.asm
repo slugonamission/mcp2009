@@ -40,8 +40,8 @@ top:
 	ld (menu_sel),a
 	ld (jewels_collected),a
 	
-	call disp_clear_text
 	call disp_clear_graphics
+	call disp_clear_text
 	call disp_text_mode
 	call clear_small
 
@@ -230,6 +230,10 @@ game_start:
 	call network_enable_recv_int
 	
 	ei
+
+	## Quick test - zoom in
+	call zoom_in
+
 	
 	## Main game state checking loop
 loop:	ld a,(game_state)

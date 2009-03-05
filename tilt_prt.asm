@@ -94,41 +94,36 @@ shift_loop_end:
 	jp nz,PRT_restore_bc		#If it isnt 0, we cant move into it, jump out
 	
 	## Right then, we now need to update the pixels
-	## Turn the new pixel on
-	## Put HL to be 0 based again (i.e. dont account for the 0xc0 offset)
-	ld a,h
-	sub 0xc0
-	ld h,a
-	call disp_set_adp
+	ld hl,(update_player_jump)
+	jp (hl)
 
+update_player_end:
 	## Now, we need to check if were going to collide with an enemy
 	call collide_item_check
 	
-	ld a,b			#Load it with the new X value
-	and 0x07
-	cpl
-	or 0xF8
-	call clear_to_send
-	out0 (disp_cmd),a
-	## We should now have set the correct bit
+	## We also want to move the text address pointer too
+	## We need to subtract ~4 rows = -128*4 = 512 and 6 cols = -512-6 = -518
+	## The current position is stored in BC
+	push bc			#We need to play with it a bit
 
-	## Clear the previous bit
-	ld a,d
-	srl d;srl d;srl d
-	ld h,0x10
-	ld l,e
+	ld h,128		#Get the desired row
+	ld l,c
 	mlt hl
-	ld e,d
-	ld d,0x00
-	add hl,de
 
-	call disp_set_adp
+	ld c,b
+	ld b,0x00
+	add hl,bc		#Add on the cols. We should now have the right byte
 
-	and 0x07
-	cpl
-	call clear_to_send
-	and 0xF7
-	out0 (disp_cmd),a
+	## Naturally, this architecture doesnt support 16 bit sub, which we need. Damn thing.
+	## Lets cheat. Add on 2^16-518. It /should/ overflow and give us the right answer.
+	ld bc,65018
+	add hl,bc
+
+	## Now set the display to start drawing from there
+	call disp_set_text_home
+
+	## And finally restore BC
+	pop bc
 
 	## We dont need to restore BC, jump over it
 	jp PRT_end
@@ -180,4 +175,99 @@ tilt_right:
 	ld h,0xFF
 	ret
 
+update_player_jump:	.int update_player_out
+	
+update_player_in:
+	## We need to play with BC a bit
+	push de
+	push bc
+	push af
+	
+	## Really, we have done this enough, it should be obvious what this does by now
+	ld h,c
+	ld l,128
+	mlt hl
 
+	ld c,b
+	ld b,0x00
+	add hl,bc
+
+	call disp_set_adp
+
+	ld a,'P'
+	call disp_write_char
+
+	## And now clear the previous one
+	## Just do the same thing with DE
+	ld h,e
+	ld l,128
+	mlt hl
+
+	ld e,d
+	ld d,0x00
+	add hl,de
+
+	call disp_set_adp
+
+	## And clear the char
+	ld a,' '
+	call disp_write_char
+
+	pop af
+	pop bc
+	pop de
+	## And return back out again
+	jp update_player_end
+
+	
+update_player_out:
+	## Turn the new pixel on
+	## Put HL to be 0 based again (i.e. dont account for the 0xc0 offset)
+	ld a,h
+	sub 0xc0
+	ld h,a
+	call disp_set_adp
+
+	ld a,b			#Load it with the new X value
+	and 0x07
+	cpl
+	or 0xF8
+	call clear_to_send
+	out0 (disp_cmd),a
+
+	## Clear the previous bit
+	ld a,d
+	srl d;srl d;srl d
+	ld h,0x10
+	ld l,e
+	mlt hl
+	ld e,d
+	ld d,0x00
+	add hl,de
+
+	call disp_set_adp
+
+	and 0x07
+	cpl
+	call clear_to_send
+	and 0xF7
+	out0 (disp_cmd),a
+
+	## And return
+	jp update_player_end
+
+PRT_set_in:
+	push hl
+	ld hl,update_player_in
+	ld (update_player_jump),hl
+	pop hl
+
+	ret
+
+PRT_set_out:
+	push hl
+	ld hl,update_player_out
+	ld (update_player_jump),hl
+	pop hl
+
+	ret

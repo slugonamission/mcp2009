@@ -23,6 +23,9 @@ game_complete=0x02
 	.globl default_callback
 	.globl collide_item_check
 
+	.globl zoom_in
+	.globl zoom_out
+
 	.globl monsters
 	.globl monsters_count
 	.globl curr_monster_offset
