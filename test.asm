@@ -40,6 +40,9 @@ top:
 	ld (menu_sel),a
 	ld (jewels_collected),a
 	ld (zoom_level),a
+
+	ld a,3
+	ld (lives),a
 	
 	call disp_clear_graphics
 	call disp_clear_text
@@ -209,6 +212,9 @@ game_start:
 	ld hl,jewel_msg
 	ld b,9
 	call write_seq_small
+	ld a,(lives)
+	add a,48
+	call write_small
 	
 	## We should have the map, enter the main game loop
 	## B = X axis
@@ -230,7 +236,7 @@ game_start:
 	call network_set_end_callback
 	call network_enable_recv_int
 
-	## And make sure we are zoomed out
+	## And make sure we are zoomed out. This also writes the map out and other stuffs
 	call zoom_out
 	
 	ei
@@ -246,6 +252,12 @@ loop:	ld a,(game_state)
 	## Ok, were running in normal mode
 	## Poll the switches...do we want to zoom in?
 	in0 a,(0xf4)
+
+	## If we click, dont do anything. It causes problems when recovering from death
+	cp 0x08
+	jp z,loop
+	cp 0x80
+	jp z,loop
 	and 0x04
 	cp 0x04
 	jp z,loop_zoom_in
@@ -257,14 +269,14 @@ loop:	ld a,(game_state)
 	## If we get here, nothing has been pressed
 	jp loop
 	
-loop_zoom_in:
-	## Interrupts can screw this up, turn them off
-	di
-	
+loop_zoom_in:	
 	ld a,(zoom_level)
 	cp 0xFF
 	jp z,loop
 
+	## Interrupts can screw this up, turn them off
+	di
+	
 	## Were OK to zoom
 	call zoom_in
 	ld a,0xFF
@@ -286,8 +298,10 @@ loop_zoom_out:
 	ld a,0x00
 	ld (zoom_level),a
 
+	## Turn our interrupts back on again
 	ei
-	
+
+	## Return to the main game loop
 	jp loop
 	
 	## Were safe enough to make these calls blocking, after all
@@ -295,9 +309,30 @@ loop_zoom_out:
 loop_dead:
 	di
 
+	push bc			#We need it later
+	
 	call rtc_stop
+
 	call clear_small
+
+	## Decrement the lives
+	ld a,(lives)
+	dec a
+	ld (lives),a
+	cp 0x00
+	jp z,load_game_over
+	jp load_normal_dead
+
+load_game_over:	
+	ld hl,game_over
+	jp load_cont
+
+load_normal_dead:	
 	ld hl,dead
+	jp load_cont
+
+	## Return point for the procedures above setting hl to the relevant value
+load_cont:	
 	ld b,16
 	call write_seq_small
 
@@ -308,12 +343,51 @@ loop_dead:
 	ld b,16
 	call write_seq_small
 
-loop_dead_inner:
+	ld a,(lives)
+	cp 0x00
+	jp z,loop_dead_inner_game_over
+	jp loop_dead_inner_normal
+
+loop_dead_inner_game_over:
 	in0 a,(0xf4)
 	and 0x88
 	jp nz,top
-	jp loop_dead_inner
+	jp loop_dead_inner_game_over
 
+loop_dead_inner_normal:
+	in0 a,(0xf4)
+	and 0x88
+	jp z,loop_dead_inner_normal
+	ld a,game_running
+	ld (game_state),a
+
+	## We now need to reinstante the normal data on the display
+	## Just nick the contents of the procedure above
+	call clear_small
+	ld hl,timer
+	ld b,11
+	call write_seq_small
+
+	## Show the number of jewels collected on the screen
+	ld a,s_line_2_offset
+	call set_adp_small
+	ld hl,jewel_msg
+	ld b,9
+	call write_seq_small
+	ld a,(lives)
+	add a,48
+	call write_small
+	
+	call rtc_start
+
+	pop bc
+
+	## Turn interrupts back on so everything works again
+	ei
+	
+	## And away we go!	
+	jp loop
+	
 loop_complete:
 	di
 
@@ -459,9 +533,10 @@ exit_sel:	"     >Exit<     " #Len: 16
 loading:	"Please flip the switch" #Len:22
 done:		"     Loaded     " #Len: 16
 	## Game progress stuffs
-jewel_msg:	"Jewels: 0"        #Len:9
+jewel_msg:	"J: 0  L: "        #Len:9
 
 dead:		"  You are dead  " #Len:16
+game_over:	"   Game Over    " #Len:16
 complete:	"    You won!    " #Len:16
 
 btn_cont:	" Press any btn  " #Len: 16
@@ -504,3 +579,4 @@ game_state:		.byte game_running
 	## 0x00 = zoomed out
 	## 0xFF = zoomed in
 zoom_level:		.byte 0x00
+lives:			.byte 0x03
