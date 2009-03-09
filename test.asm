@@ -39,6 +39,7 @@ top:
 	ld a,0			#Reset the menu item selected to 0
 	ld (menu_sel),a
 	ld (jewels_collected),a
+	ld (zoom_level),a
 	
 	call disp_clear_graphics
 	call disp_clear_text
@@ -184,17 +185,17 @@ game_start:
 	call disp_set_adp
 	call disp_graphics_mode
 
-	ld hl,0xc000
-	ld b,0xff
-	call disp_write_b_seq
-	ld b,0xff
-	call disp_write_b_seq
-	ld b,0xff
-	call disp_write_b_seq
-	ld b,0xff
-	call disp_write_b_seq
-	ld b,0x10
-	call disp_write_b_seq
+##	ld hl,0xc000
+##	ld b,0xff
+##	call disp_write_b_seq
+##	ld b,0xff
+##	call disp_write_b_seq
+##	ld b,0xff
+##	call disp_write_b_seq
+##	ld b,0xff
+##	call disp_write_b_seq
+##	ld b,0x10
+##	call disp_write_b_seq
 
 	## Show the time on the screen
 	call clear_small
@@ -228,11 +229,11 @@ game_start:
 	ld hl,main_network_end_callback
 	call network_set_end_callback
 	call network_enable_recv_int
+
+	## And make sure we are zoomed out
+	call zoom_out
 	
 	ei
-
-	## Quick test - zoom in
-##	call zoom_in
 
 	
 	## Main game state checking loop
@@ -241,8 +242,54 @@ loop:	ld a,(game_state)
 	jp z,loop_dead
 	cp game_complete
 	jp z,loop_complete
-	jp loop
 
+	## Ok, were running in normal mode
+	## Poll the switches...do we want to zoom in?
+	in0 a,(0xf4)
+	and 0x04
+	cp 0x04
+	jp z,loop_zoom_in
+	in0 a,(0xf4)
+	and 0x02
+	cp 0x02
+	jp z,loop_zoom_out
+
+	## If we get here, nothing has been pressed
+	jp loop
+	
+loop_zoom_in:
+	## Interrupts can screw this up, turn them off
+	di
+	
+	ld a,(zoom_level)
+	cp 0xFF
+	jp z,loop
+
+	## Were OK to zoom
+	call zoom_in
+	ld a,0xFF
+	ld (zoom_level),a
+
+	ei
+	jp loop
+	
+loop_zoom_out:
+	## Again, interrupts can really screw this up, disable them
+	di
+	
+	ld a,(zoom_level)
+	cp 0x00
+	jp z,loop
+
+	## OK to zoom out
+	call zoom_out
+	ld a,0x00
+	ld (zoom_level),a
+
+	ei
+	
+	jp loop
+	
 	## Were safe enough to make these calls blocking, after all
 	## we dont want anything to actually be happening while were dead...
 loop_dead:
@@ -283,6 +330,9 @@ loop_complete:
 	call write_seq_small
 	
 	call disp_clear_graphics
+
+	call disp_graphics_mode
+	
 	ld hl,disp_gfx_home
 	call disp_set_adp
 	
@@ -451,3 +501,6 @@ item_recv_count:	.byte 0x00
 curr_ix_val:		.int 0x0000
 
 game_state:		.byte game_running
+	## 0x00 = zoomed out
+	## 0xFF = zoomed in
+zoom_level:		.byte 0x00

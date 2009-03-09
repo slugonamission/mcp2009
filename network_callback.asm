@@ -24,8 +24,6 @@ main_network_end_callback:
 	push de
 	push bc
 
-	ld b,0x00		#The number of items we have currently handled
-
 	ld a,monsters
 	ld (curr_monster_offset),a
 	ld a,ghosts
@@ -35,89 +33,13 @@ main_network_end_callback:
 	
  	ld a,(network_item_count)
 	ld (item_recv_count),a
-
-	ld ix,monsters
-	ld hl,monsters_count
 	
-main_network_end_monster_clear_loop:
-	## Start clearing the old pixels
-	ld a,b
-	cp (hl)
-	jp z,main_network_end_monster_clear_end
-	inc a
-	ld b,a
-	
-	ld d,(ix)
-	inc ix
-	ld e,(ix)
-	inc ix
-
+	ld hl,main_network_callback_clear_end
 	push hl
-	## Now do the transform to clear the right pixel
-	ld h,0x10
-	ld l,e
-	mlt hl
-	ld a,d
-	srl d;srl d;srl d
-	ld e,d
-	ld d,0x00
-	add hl,de
-	call disp_set_adp
-	
-	and 0x07
-	cpl
-	or 0xF0
-	and 0xF7
-	call clear_to_send
-	out0 (disp_cmd),a
+	ld hl,(network_callback_clear_items_jump)
+	jp (hl)
 
-	pop hl
-	
-	jp main_network_end_monster_clear_loop
-	
-main_network_end_monster_clear_end:
-	ld b,0x00
-
-	ld ix,ghosts
-	ld hl,ghosts_count
-	
-main_network_end_ghost_clear_loop:
-	## Start clearing the old pixels
-	ld a,b
-	cp (hl)
-	jp z,main_network_end_ghost_clear_end
-	inc a
-	ld b,a
-
-	ld d,(ix)
-	inc ix
-	ld e,(ix)
-	inc ix
-
-	push hl
-	## Now do the transform to clear the right pixel
-	ld h,0x10
-	ld l,e
-	mlt hl
-	ld a,d
-	srl d;srl d;srl d
-	ld e,d
-	ld d,0x00
-	add hl,de
-	call disp_set_adp
-	
-	and 0x07
-	cpl
-	or 0xF0
-	and 0xF7
-	call clear_to_send
-	out0 (disp_cmd),a
-
-	pop hl
-	
-	jp main_network_end_ghost_clear_loop
-	
-main_network_end_ghost_clear_end:
+main_network_callback_clear_end:
 	ld ix,network_recv_buffer
 	ld b,0x00
 
@@ -149,41 +71,15 @@ network_callback_display_end:
 	ld hl,jewels_count
 
 network_callback_display_jewels:
-	ld a,b
-	cp (hl)
-	jp z,network_callback_display_jewels_end
-	inc a
-	ld b,a
-	
-	ld d,(ix)
-	inc ix
-	ld e,(ix)
-	inc ix
-	ld a,e
-	cp 0xFF
-	jp z,network_callback_display_jewels
-
-	## Done the checks, display the jewel
 	push hl
-	
-	ld h,0x10
-	ld l,e
-	mlt hl
-	ld a,d
-	srl d;srl d;srl d
-	ld e,d
-	ld d,0x00
-	add hl,de
-	call disp_set_adp
-	
-	and 0x07
-	cpl
-	or 0xF8
-	call clear_to_send
-	out0 (disp_cmd),a
+	ld hl,network_callback_display_jewels_end
+	ex (sp),hl	#Push on the return address
 
-	pop hl
-	jp network_callback_display_jewels
+	push hl
+	ld hl,(network_callback_disp_j_jump)
+	ex (sp),hl	#And also the address to jump to
+	
+	ret	#And jump to it!
 	
 network_callback_display_jewels_end:		
 	## We have all the items
@@ -275,9 +171,17 @@ store_monster:
 	ret
 	
 
+	## Stores the jump location for the item display
 network_callback_display_items_jump:	.int network_callback_display_items_out
+	## Jump location for item clearing
+network_callback_clear_items_jump:	.int network_callback_clear_items_out
+	## And finally, for the jewel drawing
+network_callback_disp_j_jump:		.int main_network_callback_disp_j_out
 
-	## Code refactoring for the next part
+	## =======================================================================
+	## Display code for items
+	## =======================================================================
+	## We really need to refactor all this
 network_callback_display_items_out:
 	ld a,e
  	and 0xC0		#Select just the ident bits
@@ -285,7 +189,7 @@ network_callback_display_items_out:
 	## Figure out which store procedure to call
 	cp 0x40
 	call z,store_jewel
-	jp z,network_jewel_display_callback_out
+	jp z,network_callback_display_end
 	
 	cp 0x80
 	call z,store_ghost
@@ -294,14 +198,6 @@ network_callback_display_items_out:
 	cp 0xc0
 	call z,store_monster
 	jp z,network_callback_display_out
-
-
-network_jewel_display_callback_out:
-	ld h,a			#Store A somewhere convinent for now
-	ld a,(received_jewels)
-	cp 0xFF
-	ld a,h
-	jp z,network_callback_display_end
 	
 network_callback_display_out:	
 	ld a,e
@@ -327,15 +223,329 @@ network_callback_display_out:
 	out0 (disp_cmd),a
 
 	jp network_callback_display_end
+
+	## --------------------------------------------------------------------------
 	
 network_callback_display_items_in:
+	ld a,e
+	and 0xC0		#Select the ident bits
+
+	cp 0x40
+	call z,store_jewel
+	jp z,network_callback_display_end
+
+	cp 0x80
+	call z,store_ghost
+	jp z,network_callback_display_ghost_in
+
+	cp 0xc0
+	call z,store_monster
+	jp z,network_callback_display_monster_in
+
+	## If we get here, something failed
 	jp network_callback_display_end
 	
+network_callback_display_monster_in:
+	ld a,e
+	and 0x3F 		#Strip ident this time
+	ld e,a
+
+	ld h,128
+	ld l,e
+	mlt hl
+
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+	ld a,'M'
+	call disp_write_char
+
+	jp network_callback_display_end
+
+network_callback_display_ghost_in:
+	ld a,e
+	and 0x3F 		#Strip ident this time
+	ld e,a
+
+	ld h,128
+	ld l,e
+	mlt hl
+
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+	
+	ld a,'G'
+	call disp_write_char
+
+	jp network_callback_display_end
+	
+	## ====================================================================
+	## Routines for clearing the old locations
+	## ====================================================================
+
+network_callback_clear_items_in:
+	ld ix,monsters
+	ld hl,monsters_count
+	ld b,0x00		#The number of items we have currently handled
+	
+main_network_end_monster_clear_loop_in:
+	## Start clearing the old pixels
+	ld a,b
+	cp (hl)
+	jp z,main_network_end_monster_clear_end_in
+	inc a
+	ld b,a
+	
+	ld d,(ix)
+	inc ix
+	ld e,(ix)
+	inc ix
+
+	push hl
+	## Now do the transform to clear the right pixel
+	ld h,128
+	ld l,e
+	mlt hl
+
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+
+	ld a,' '
+	call disp_write_char
+
+	pop hl
+	
+	jp main_network_end_monster_clear_loop_in
+	
+main_network_end_monster_clear_end_in:
+	ld b,0x00
+
+	ld ix,ghosts
+	ld hl,ghosts_count
+	
+main_network_end_ghost_clear_loop_in:
+	## Start clearing the old pixels
+	ld a,b
+	cp (hl)
+	jp z,main_network_end_ghost_clear_end_in
+	inc a
+	ld b,a
+
+	ld d,(ix)
+	inc ix
+	ld e,(ix)
+	inc ix
+
+	push hl
+	## Now do the transform to clear the right pixel
+	ld h,128
+	ld l,e
+	mlt hl
+
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+
+	ld a,' '
+	call disp_write_char
+
+	pop hl
+	
+	jp main_network_end_ghost_clear_loop_in
+
+main_network_end_ghost_clear_end_in:
+	ret
+
+	## ====================================================================
+
+network_callback_clear_items_out:
+	ld ix,monsters
+	ld hl,monsters_count
+	ld b,0x00		#The number of items we have currently handled
+	
+main_network_end_monster_clear_loop_out:
+	## Start clearing the old pixels
+	ld a,b
+	cp (hl)
+	jp z,main_network_end_monster_clear_end_out
+	inc a
+	ld b,a
+	
+	ld d,(ix)
+	inc ix
+	ld e,(ix)
+	inc ix
+
+	push hl
+	## Now do the transform to clear the right pixel
+	ld h,0x10
+	ld l,e
+	mlt hl
+	ld a,d
+	srl d;srl d;srl d
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+	
+	and 0x07
+	cpl
+	or 0xF0
+	and 0xF7
+	call clear_to_send
+	out0 (disp_cmd),a
+
+	pop hl
+	
+	jp main_network_end_monster_clear_loop_out
+	
+main_network_end_monster_clear_end_out:
+	ld b,0x00
+
+	ld ix,ghosts
+	ld hl,ghosts_count
+	
+main_network_end_ghost_clear_loop_out:
+	## Start clearing the old pixels
+	ld a,b
+	cp (hl)
+	jp z,main_network_end_ghost_clear_end_out
+	inc a
+	ld b,a
+
+	ld d,(ix)
+	inc ix
+	ld e,(ix)
+	inc ix
+
+	push hl
+	## Now do the transform to clear the right pixel
+	ld h,0x10
+	ld l,e
+	mlt hl
+	ld a,d
+	srl d;srl d;srl d
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+	
+	and 0x07
+	cpl
+	or 0xF0
+	and 0xF7
+	call clear_to_send
+	out0 (disp_cmd),a
+
+	pop hl
+	
+	jp main_network_end_ghost_clear_loop_out
+
+main_network_end_ghost_clear_end_out:
+	ret
+
+	## =============================================================
+	## Finally, routines to handle jewel drawing
+	## =============================================================
+main_network_callback_disp_j_out:	
+	ld a,b
+	cp (hl)
+	jp z,main_network_callback_disp_h_end_out
+	inc a
+	ld b,a
+	
+	ld d,(ix)
+	inc ix
+	ld e,(ix)
+	inc ix
+	ld a,e
+	cp 0xFF
+	jp z,main_network_callback_disp_j_out
+
+	## Done the checks, display the jewel
+	push hl
+	
+	ld h,0x10
+	ld l,e
+	mlt hl
+	ld a,d
+	srl d;srl d;srl d
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+	
+	and 0x07
+	cpl
+	or 0xF8
+	call clear_to_send
+	out0 (disp_cmd),a
+
+	pop hl
+	jp main_network_callback_disp_j_out
+
+main_network_callback_disp_h_end_out:
+	ret
+
+	## =============================================================
+
+main_network_callback_disp_j_in:	
+	ld a,b
+	cp (hl)
+	jp z,main_network_callback_disp_h_end_in
+	inc a
+	ld b,a
+	
+	ld d,(ix)
+	inc ix
+	ld e,(ix)
+	inc ix
+	ld a,e
+	cp 0xFF
+	jp z,main_network_callback_disp_j_in
+
+	## Done the checks, display the jewel
+	push hl
+	
+	ld h,128
+	ld l,e
+	mlt hl
+
+	ld e,d
+	ld d,0x00
+	add hl,de
+	call disp_set_adp
+	
+	ld a,'J'
+	call disp_write_char
+
+	pop hl
+	jp main_network_callback_disp_j_in
+
+main_network_callback_disp_h_end_in:
+	ret
+
+	## =============================================================
+	## Routines to change the pointers to handle zooming
+	## =============================================================
 
 network_callback_set_in:
 	push hl
 	ld hl,network_callback_display_items_in
 	ld (network_callback_display_items_jump),hl
+
+	ld hl,network_callback_clear_items_in
+	ld (network_callback_clear_items_jump),hl
+
+	ld hl,main_network_callback_disp_j_in
+	ld (network_callback_disp_j_jump),hl
+
 	pop hl
 
 	ret
@@ -344,6 +554,13 @@ network_callback_set_out:
 	push hl
 	ld hl,network_callback_display_items_out
 	ld (network_callback_display_items_jump),hl
+	
+	ld hl,network_callback_clear_items_out
+	ld (network_callback_clear_items_jump),hl
+
+	ld hl,main_network_callback_disp_j_out
+	ld (network_callback_disp_j_jump),hl
+
 	pop hl
 
 	ret

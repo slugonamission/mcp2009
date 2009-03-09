@@ -5,6 +5,7 @@
 #include "display_small.h"
 #include "display.h"
 #include "tilt_prt.h"
+#include "network_callback.h"
 	
 	## Standard system initialisation
 	## Destroys: probably everything. You shouldnt call this
@@ -295,7 +296,8 @@ zoom_in_exit:
 
 	## Update the PRT routine to use the new movement code
 	call PRT_set_in	
-	
+	## And the network callback
+	call network_callback_set_in
 	pop bc
 	pop hl
 	pop af
@@ -309,11 +311,60 @@ zoom_in_dispatch_0:
 	ret
 
 zoom_in_dispatch_1:
-	ld a,'W'-32
+	ld a,0xFF
 	call disp_send_byte	
 	ret
 	
 zoom_out:
-	nop;ret
+	push hl
+	push bc
+	
+	ld hl,disp_gfx_home
+	call disp_set_adp
+
+	call disp_graphics_mode
+	
+	ld hl,0xc000
+	ld b,0xff
+	call disp_write_b_seq
+	ld b,0xff
+	call disp_write_b_seq
+	ld b,0xff
+	call disp_write_b_seq
+	ld b,0xff
+	call disp_write_b_seq
+	ld b,0x10
+	call disp_write_b_seq	
+
+	## We also need to write the player position out
+	pop bc			#Get the player pos back out again
+	push bc
+
+	ld a,b
+	srl b;srl b;srl b
+	ld h,0x10
+	ld l,c
+	mlt hl
+	ld c,b
+	ld b,0x00
+	add hl,bc
+
+	call disp_set_adp
+
+	and 0x07
+	cpl
+	call clear_to_send
+	or 0xF8
+	out0 (disp_cmd),a	
+	
+	## Update the PRT routine to use the new movement code
+	call PRT_set_out
+	## And the network callback
+	call network_callback_set_out
+
+	pop bc
+	pop hl
+
+	ret
 
 	
