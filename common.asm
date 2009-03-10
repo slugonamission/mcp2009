@@ -152,7 +152,7 @@ grab_jewel:
 	inc ix
 	ld (ix),a
 
-	ld a,s_line_2_offset+2	#Where is the jewel count?
+	ld a,s_line_2_offset+3	#Where is the jewel count?
 	call set_adp_small
 	
 	ld a,(jewels_count)	#WHY CANT WE DO LD B,(FOO)?!

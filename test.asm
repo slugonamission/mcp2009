@@ -219,8 +219,84 @@ game_start:
 	## We should have the map, enter the main game loop
 	## B = X axis
 	## C = Y axis
-	## TODO - fix this to probe for a blank space instead
-	ld bc,0x0101
+	## Probe for a relevant start position
+	ld hl,0xc000-1
+game_probe_loop:
+	ld a,h
+	cp 0xc4
+	jp z,game_probe_end
+
+	inc hl
+	ld a,(hl)
+	cp 0xFF
+	jp z,game_probe_loop
+
+	## We found a byte with a blank in it, now try and find the position in it
+	ld d,0x80		#10000000
+	ld e,0x00
+game_probe_shift_loop:
+	and d
+	jp z,game_probe_calculate
+	srl d
+	inc e
+	jp game_probe_shift_loop
+
+game_probe_calculate:
+	## Right
+	## HL contains the byte that the space is contained within
+	## E contains the position in that byte that we can use
+	## The result needs to go into BC in the form XY
+	## Each line is 16B apart in memory
+	ld a,h
+	sub 0xc0		#Take the RAM offset off
+	ld h,a
+
+	## Need to divide by 16
+	## Shift right 4 times
+	push hl
+	srl l
+	srl h
+	call c,set_high_1
+
+	srl l
+	srl h
+	call c,set_high_1
+
+	srl l
+	srl h
+	call c,set_high_1
+
+	srl l
+	srl h
+	call c,set_high_1
+
+	## We now have the row number in L
+	ld c,l
+
+	pop hl
+	## We now need the X co-ordinate
+	## For this, we need the low-order nibble of L
+	ld a,l
+	and 0x0F
+
+	## Now multiply by 8
+	sla a;sla a;sla a
+	## And finally add on the offset in E
+	add a,e
+	
+	## And now load this into B
+	ld b,a
+
+	## And skip over the next procedure
+	jp game_probe_end
+		
+set_high_1:
+	ld a,h
+	or 0x80
+	ld h,a
+	ret
+	
+game_probe_end:		
 	ld de,0x30FF		#Counter so the timers dont go mad
 	
 	## The rest is handled by the PRTs
@@ -313,6 +389,16 @@ loop_dead:
 	
 	call rtc_stop
 
+	## Now add on the time penalty
+	## Cheat instead and call the RTC callback 15 times
+	ld a,15
+loop_dead_penalty_loop:	
+	call main_rtc_callback
+	dec a
+	cp 0x00
+	jp nz,loop_dead_penalty_loop
+
+	
 	call clear_small
 
 	## Decrement the lives
@@ -322,6 +408,8 @@ loop_dead:
 	cp 0x00
 	jp z,load_game_over
 	jp load_normal_dead
+
+
 
 load_game_over:	
 	ld hl,game_over
