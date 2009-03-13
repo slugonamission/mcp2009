@@ -43,6 +43,10 @@ top:
 
 	ld a,3
 	ld (lives),a
+
+	ld hl,tilt_game
+	ld b,16
+	call network_1_write_seq
 	
 	call disp_clear_graphics
 	call disp_clear_text

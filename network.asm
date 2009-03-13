@@ -248,6 +248,56 @@ network_handler_error:
 	## OH TEH NOES - WE BROKE
 	## We should be safe enough to just jump back in to the return function
 	jp network_handler_real_end
+
+	## Checks channel 1 is clear to send
+network_1_cts:
+	push af
+network_1_cts_loop:	
+	in0 a,(asci_stat_1)
+	and 0x02
+	cp 0x02
+	jp nz,network_1_cts_loop
+
+	pop af
+	ret
+	
+	## Routines for I/O from ASCI1
+network_1_write_byte:
+	push af
+	call network_1_cts
+	out0 (asci_xmit_1),a
+	pop af
+
+	ret
+
+	## Write a sequence of bytes to the screen
+	## B - the number of bytes to write
+	## HL - the pointer to start writing from
+network_1_write_seq:
+	push af
+	push bc
+	push hl
+
+network_1_write_seq_loop:
+	ld a,(hl)
+	call network_1_write_byte
+	inc hl
+	djnz network_1_write_seq_loop
+
+	pop hl
+	pop bc
+	pop af
+	ret
+	
+	## Loads a byte from the network into A
+network_1_recv_byte:
+	in0 a,(asci_stat_1)
+	and 0x80
+	cp 0x80
+	jp nz,network_1_recv_byte
+
+	in0 a,(asci_recv_1)
+	ret
 	
 	## -------------------------------------------------------
 	## Vars
@@ -257,4 +307,3 @@ network_bytes_recv:		.byte 0x00
 network_bytes_total:		.byte 0x00
 network_item_count:		.byte 0x00
 network_recv_buffer:		.space item_space
-

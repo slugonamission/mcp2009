@@ -31,4 +31,8 @@ item_space=256
 .globl network_recv_buffer
 .globl network_item_count
 .globl network_bytes_total
+
+.globl network_1_write_byte
+.globl network_1_write_seq
+.globl network_1_recv_byte
 #endif

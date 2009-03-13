@@ -1,0 +1,8 @@
+#!/usr/bin/env python
+#Open the serial port as already set up by seyon
+
+f = open("/dev/ttyS0", "r+")
+
+while(True):
+    b = f.read(1)
+    print b,
