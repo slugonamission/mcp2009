@@ -49,10 +49,10 @@ disp_init:
 
 	## Set the offset pointer properly
 	call clear_to_send
-	ld a,0x00
+	ld a,0x03
 	out0 (disp_data),a
 	call clear_to_send
-	ld a,0x03
+	ld a,0x00
 	out0 (disp_data),a
 
 	call clear_to_send

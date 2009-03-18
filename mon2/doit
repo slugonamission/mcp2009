@@ -1,0 +1,7 @@
+echo -n L > /dev/ttyS0
+cat mon.hex > /dev/ttyS0
+echo -n G > /dev/ttyS0
+echo -n 9 > /dev/ttyS0
+echo -n 0 > /dev/ttyS0
+echo -n 0 > /dev/ttyS0
+echo -n 0 > /dev/ttyS0

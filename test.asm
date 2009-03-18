@@ -8,6 +8,7 @@
 #include "tilt_prt.h"
 #include "network_callback.h"
 #include "graphics.h"
+#include "i2c.h"
 	
 top:
 	## Set everything up
@@ -25,8 +26,9 @@ top:
 	call timer_init
 	call network_init
 	call rtc_init
+	call i2c_init
 	call main_network_end_callback_init
-
+	
 	ld a,game_running
 	ld (game_state),a
 	
@@ -36,6 +38,25 @@ top:
 	ld (time_sec_1),a
 	ld (time_sec_2),a
 
+	## Play with the I2C a bit
+##	ld h,0xFF
+##	call i2c_start_xmit
+##	ld a,0xFF
+##	call i2c_write_byte
+##	ld a,0xCF
+#	call i2c_write_byte
+#	call i2c_xmit_end
+
+##	call clear_small
+	
+##	ld h,0x4E
+##	call i2c_start_xmit
+##	ld a,0xFF
+##	call i2c_write_byte
+##	ld a,0xFF
+##	call i2c_write_byte
+##	call i2c_xmit_end
+	
 	ld a,0			#Reset the menu item selected to 0
 	ld (menu_sel),a
 	ld (jewels_collected),a
@@ -192,18 +213,6 @@ game_start:
 	call disp_set_adp
 	call disp_graphics_mode
 
-##	ld hl,0xc000
-##	ld b,0xff
-##	call disp_write_b_seq
-##	ld b,0xff
-##	call disp_write_b_seq
-##	ld b,0xff
-##	call disp_write_b_seq
-##	ld b,0xff
-##	call disp_write_b_seq
-##	ld b,0x10
-##	call disp_write_b_seq
-
 	## Show the time on the screen
 	call clear_small
 	ld hl,timer
@@ -239,10 +248,13 @@ game_probe_loop:
 	ld d,0x80		#10000000
 	ld e,0x00
 game_probe_shift_loop:
+	ld a,(hl)
+
 	and d
 	jp z,game_probe_calculate
 	srl d
 	inc e
+
 	jp game_probe_shift_loop
 
 game_probe_calculate:
@@ -295,9 +307,9 @@ game_probe_calculate:
 	jp game_probe_end
 		
 set_high_1:
-	ld a,h
+	ld a,l
 	or 0x80
-	ld h,a
+	ld l,a
 	ret
 	
 game_probe_end:		

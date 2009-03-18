@@ -1,4 +1,4 @@
-seyon -script /n/course/2/mcp/lib/mcp.seyon &
+seyon -script ./mcp.seyon &
 alias ls="ls --color=auto"
 alias emacs="emacs -nw"
 

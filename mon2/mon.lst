@@ -1,0 +1,780 @@
+   1:	00B0          	pa_8255 equ 0b0h
+   2:	00B1          	pb_8255 equ 0b1h
+   3:	00B2          	pc_8255 equ 0b2h
+   4:	00B3          	csr_8255 equ 0b3h
+   5:			
+   6:			
+   7:	00B4          	kbdctrl equ 0b4h
+   8:			
+   9:			
+  10:	00B8          	csr_lcd equ 0b8h
+  11:	00B9          	data_lcd equ 0b9h
+  12:			
+  13:			
+  14:	00BC          	data_i2c equ 0bch
+  15:	00BD          	csr_i2c equ 0bdh
+  16:	F000          	BUFF EQU 0f000h ; START OF RAM, INPUT BUFFER
+  17:	F0FF          	IOCON EQU BUFF+0FFh ; INPUT/OUTPUT CONFIGURATION
+  18:	F101          	USROUT EQU IOCON+2 ; USER SUPPLIED OUTPUT DEVICE VECTOR
+  19:	F103          	CURSOR EQU USROUT+2 ; CURSOR POSITION
+  20:	F105          	LSTCHR EQU CURSOR+2 ; CHARACTER UNDER CURSOR
+  21:	FFFF          	STACK EQU 0ffffh ; MACHINE STACK
+  22:	F032          	TB EQU BUFF+50 ; TEMPORARY TEXT BUFFER
+  23:	F064          	XBF EQU TB+50 ; EXTRA TEXT BUFFER
+  24:	F100          	EDBUF EQU BUFF+256 ; EDIT BUFFER
+  25:	F1FA          	CS EQU EDBUF+0FAh ; CONTROL STACK SPACE
+  26:	F1FB          	CSP EQU CS+1 ; CONTROL STACK POINTER
+  27:	F1FD          	ARYLOC EQU CSP+2 ; LOCATION OF ARRAYS
+  28:	F1FE          	SEED EQU ARYLOC+1 ; RANDOM NUMBER SEED
+  29:	F200          	VARS EQU SEED+2 ; VARIABLE SPACE
+  30:	00F6          	VARTOP EQU 0f6h ; VARS + 0400h, upper 8 bits only
+  31:	F234          	RFLAG EQU VARS+52 ; PROGRAM RUNNING FLAG
+  32:	F235          	IFLAG EQU RFLAG+1 ; INPUTTING FLAG
+  33:	F236          	Pend EQU IFLAG+1 ; POINTER TO END OF EXPRESSION
+  34:	F237          	EFLAG EQU Pend+1 ; ASSIGNMENT FLAG
+  35:	F238          	DATA EQU EFLAG+1 ; READ/DATA POINTER
+  36:	F23A          	LAST EQU DATA+2 ; LAST FREE ARRAY SPACE
+  37:	F23C          	TEMP EQU LAST+2 ; TEMPORARY STORAGE
+  38:	F246          	cp1 equ TEMP+10 ; 4 vars for the compares
+  39:	F247          	cp2 equ cp1+1 ;
+  40:	F248          	cp3 equ cp2+1 ;
+  41:	F249          	cp4 equ cp3+1 ;
+  42:	F24A          	rest7 equ cp4+1 ; restart7 vector
+  43:	F24C          	nmi equ rest7+2 ; NMI vector
+  44:	F24E          	basic equ nmi+2 ; basic start vector
+  45:	F250          	rentry equ basic+2 ; basic soft start
+  46:	F252          	sleep equ rentry+2 ; basic sleep counter value
+  47:	F254          	kbd_reg equ sleep+2 ; keyboard interupt counter
+  48:	F255          	kbd_dat equ kbd_reg+1 ; keyboard interupt counter
+  49:	F256          	rtc_int equ kbd_dat+1 ; stop RTC ints,
+  50:	8000          	TXT EQU 08000h ; PROGRAM AND ARRAY STORAGE
+  51:	007F          	DELETE EQU 07Fh ; DELETE CHARACTER
+  52:			
+  53:	0000          	origin equ 00000h ; set the base of the monitor ron
+  54:	0005          	defio equ 005h ; default i/o configuration
+  55:	0000          	keybrd equ 0 ; keyboard input port
+  56:	1000          	PBASIC equ 01000h ; pointer to the basic rom
+  57:	10A1          	PRENTRY equ 010a1h ; soft restart of basic
+  58:			
+  59:			
+  60:	0000          	 org origin
+  61:			
+  62:			
+  63:			
+  64:	0000  C36C00  	main: jp start ; get out of the way of the vector table
+  65:	0038          	 org origin+00038h ; restart 7 vector
+  66:	0038          	restart7: ; where restart7 comes to
+  67:	0038  E5      	 push hl ; save user hl
+  68:	0039  2A4AF2  	 ld hl,(rest7) ; read vector
+  69:	003C  E3      	 ex (sp),hl ; swap it to stack
+  70:	003D  C9      	 ret ; and goto interupt
+  71:			
+  72:	003E  C38202  	 jp bin ; input
+  73:	0041  C33502  	 jp bout ; output
+  74:	0044  C3C302  	 jp ctrlc ; control c handler
+  75:	0047  C3D900  	 jp prnt ; abort (exit) routine
+  76:	004A  C31D03  	 jp getr ; routine to load intel hex
+  77:	004D  C3A901  	 jp dump ; dump a file
+  78:	0050  C3C000  	 jp stub ; ton
+  79:	0053  C3C000  	 jp stub ; toff
+  80:	0056  C3C000  	 jp stub ; curpos
+  81:	0059  C31702  	 jp bspace ; put a space out
+  82:	005C  C37F03  	 jp nl ; put a crlf out
+  83:	005F  C37303  	 jp pmsg ; print
+  84:	0066          	 org origin+00066h ; NMI vecotor
+  85:	0066          	nmi_rot: ;
+  86:	0066  E5      	 push hl ; save user hl
+  87:	0067  2A4CF2  	 ld hl,(nmi) ; read vector
+  88:	006A  E3      	 ex (sp),hl ; swap it to stack
+  89:	006B  C9      	 ret ; and goto interupt
+  90:	006C  31FFFF  	start: ld sp,stack ; initalize stack
+  91:	006F  217602  	 ld hl,lcd_out ; set the base user device to lcd
+  92:	0072  2201F1  	 ld (usrout),hl ; to indicate it hasnt been set
+  93:	0075  210010  	 ld hl,PBASIC ; set the basic/rentry to stub
+  94:	0078  224EF2  	 ld (basic),hl ;
+  95:	007B  21A110  	 ld hl,PRENTRY ; reentery vector
+  96:	007E  2250F2  	 ld (rentry),hl ;
+  97:	0081  21C000  	 ld hl,stub ; set the restart7 and NMI vectors up
+  98:	0084  224AF2  	 ld (rest7),hl ;
+  99:	0087  224CF2  	 ld (nmi),hl ;
+ 100:	008A  3E05    	 ld a,defio ; default i/o configuration
+ 101:	008C  F608    	 or 008 ; set the bit for user I/O
+ 102:	008E  32FFF0  	 ld (iocon),a ; set i/o configuration
+ 103:	0091  21377A  	 ld hl,07a37h ; usart 7 bits, no parity, high-speed
+ 104:	0094  CD1B04  	 call init ; setup the basic system
+ 105:	0097  21A500  	 ld hl,opener ; tell user who we are
+ 106:	009A  CD7303  	 call pmsg ;
+ 107:	009D  3E05    	 ld a,defio ; reset the defio not to have lcd
+ 108:	009F  32FFF0  	 ld (iocon),a ; save it
+ 109:	00A2  C3D900  	 jp prnt ; prompt for command
+ 110:	00A5          	opener: ; opener message
+ 111:	00A5  36343138	 ascii '64180 monitor   ver 1.SLUG'
+	      30206D6F
+	      6E69746F
+	      72202020
+	      76657220
+	      312E534C
+	      5547
+ 112:	00BF  0D      	 byte 00dh ;
+ 113:	00C0          	stub: ; command stub, for basic
+ 114:	00C0  C9      	 ret ;
+ 115:			
+ 116:	00C1  CDCA00  	dget: call aget ; get first address
+ 117:	00C4  EB      	 ex de,hl ; swap
+ 118:	00C5  3E2C    	 ld a,',' ; get seperator character
+ 119:	00C7  CD3502  	 call bout ; display
+ 120:			
+ 121:	00CA  CDD702  	aget: call gethl ; get hex value
+ 122:	00CD  D8      	 ret c ; return if ok
+ 123:			
+ 124:	00CE  3E3F    	error: ld a,'?' ; error message
+ 125:	00D0  CD3502  	 call bout ; display it
+ 126:			
+ 127:	00D3  31FFFF  	abort: ld sp,stack ; fix up stack
+ 128:	00D6  CD7F03  	 call nl ; new line on terminal
+ 129:			
+ 130:	00D9  3E2A    	prnt: ld a,'*' ; prompt message
+ 131:	00DB  CD3502  	 call bout ; display
+ 132:	00DE  CD1E01  	 call cmd_wait ; see which serial line the command comes
+ 133:			    ; in on, and set the iocon byte apropeatly
+ 134:	00E1  CD8202  	 call bin ; get character from terminal
+ 135:	00E4  CD3502  	 call bout ; echo
+ 136:	00E7  47      	 ld b,a ; save for comparison
+ 137:	00E8  CD1702  	 call bspace ; display separater
+ 138:	00EB  210201  	 ld hl,ctab ; point to command table
+ 139:	00EE  7E      	clook: ld a,(hl) ; get cmd from table
+ 140:	00EF  23      	 inc hl ; point to next
+ 141:	00F0  A7      	 and a ; test for end if table
+ 142:	00F1  CACE00  	 jp z,error ; if so, indicate so
+ 143:	00F4  5E      	 ld e,(hl) ; get low address
+ 144:	00F5  23      	 inc hl ; point to high
+ 145:	00F6  56      	 ld d,(hl) ; get high address
+ 146:	00F7  23      	 inc hl ; point to next
+ 147:	00F8  B8      	 cp b ; test for entered command
+ 148:	00F9  C2EE00  	 jp nz,clook ; keep looking till we find
+ 149:	00FC  21D300  	 ld hl,abort ; address to return to
+ 150:	00FF  E5      	 push hl ; save return address
+ 151:	0100  EB      	 ex de,hl ; swap to h-l
+ 152:	0101  E9      	 jp (hl) ; execute user code
+ 153:	0102  42      	ctab: byte 'B' ; basic command?
+ 154:	0103  2E01    	 word Gbasic ; address of basic interpreter
+ 155:	0105  52      	 byte 'R' ; test for 'reenter'
+ 156:	0106  3201    	 word Grentry ; reenter basic
+ 157:	0108  48      	 byte 'H' ; test for 'help'
+ 158:	0109  3601    	 word help ; print help screen to user
+ 159:	010B  4C      	 byte 'L' ; test for 'load'
+ 160:	010C  8903    	 word load ; load from host
+ 161:	010E  47      	 byte 'G' ; test for 'go'
+ 162:	010F  7501    	 word go ; go execute
+ 163:	0111  53      	 byte 'S' ; test for 'sub'
+ 164:	0112  7901    	 word subst ; subst. memory
+ 165:	0114  57      	 byte 'W' ; test for 'write'
+ 166:	0115  A901    	 word dump ; dump some out
+ 167:	0117  4D      	 byte 'M' ; test for 'm'
+ 168:	0118  5201    	 word memry ; memory code
+ 169:	011A  54      	 byte 'T' ; terminal mode???
+ 170:	011B  AA03    	 word tmode ; if so, enter terminal
+ 171:	011D  00      	 byte 0 ; indicate end of table
+ 172:			
+ 173:			
+ 174:			
+ 175:			
+ 176:			
+ 177:			
+ 178:	011E          	cmd_wait: ;
+ 179:	011E  3AFFF0  	 ld a,(iocon) ; patch iocon to console
+ 180:	0121  E6FE    	 and 0feh ; mask first bit
+ 181:	0123  32FFF0  	 ld (iocon),a ;
+ 182:	0126  ED3805  	 BYTE 0edh,38h,05h
+ 183:	0129  E680    	 and 080h ; test for a char in buffer
+ 184:	012B  C0      	 ret nz ; if so act on it
+ 185:	012C  18F0    	 jr cmd_wait ; loop
+ 186:			
+ 187:			
+ 188:			
+ 189:	012E          	Gbasic:
+ 190:	012E  2A4EF2  	 ld hl,(basic) ; get the vector
+ 191:	0131  E9      	 jp (hl) ;
+ 192:	0132          	Grentry: ;
+ 193:	0132  2A50F2  	 ld hl,(rentry) ; get vector
+ 194:	0135  E9      	 jp (hl) ;
+ 195:			
+ 196:			
+ 197:			
+ 198:	0136          	help: ;
+ 199:	0136  213D01  	 ld hl,help_mes ; message pointer
+ 200:	0139  CD7303  	 call pmsg ; print it
+ 201:	013C  C9      	 ret ;
+ 202:	013D          	help_mes: ; message
+ 203:	013D  436F6D6D	 ascii 'Commands ' ;
+	      616E6473
+	      20
+ 204:	0146  672C6D2C	 ascii 'g,m,l,w,b,r' ;
+	      6C2C772C
+	      622C72
+ 205:	0151  0D      	 byte 00dh ;
+ 206:			
+ 207:			
+ 208:			
+ 209:	0152  CDC100  	memry: call dget ; get addresses
+ 210:	0155  EB      	 ex de,hl ; swap back
+ 211:	0156  CD7F03  	mloop: call nl ; start a new line
+ 212:	0159  CD1C02  	 call hlout ; display address
+ 213:	015C  CD1702  	ml1: call bspace ; display space
+ 214:	015F  7E      	 ld a,(hl) ; get contents
+ 215:	0160  CD2102  	 call hout ; display hex
+ 216:	0163  CD1102  	 call chlde ; test for end
+ 217:	0166  D0      	 ret nc ; if so, stop
+ 218:	0167  23      	 inc hl ; next byte
+ 219:	0168  7D      	 ld a,l ; get low address
+ 220:	0169  E60F    	 and 00fh ; test for end of line
+ 221:	016B  C25C01  	 jp nz,ml1 ; if not, keep going
+ 222:	016E  CDC302  	 call ctrlc ; test for user abort
+ 223:	0171  C25601  	 jp nz,mloop ; if not, keep displaying
+ 224:	0174  C9      	 ret
+ 225:			
+ 226:			
+ 227:			
+ 228:	0175  CDCA00  	go: call aget ; get address to 'go' at
+ 229:	0178  E9      	 jp (hl) ; set program counter
+ 230:			
+ 231:			
+ 232:			
+ 233:	0179  CDCA00  	subst: call aget ; get address
+ 234:	017C  CD7F03  	sub0: call nl ; start on a new line
+ 235:	017F  CD1C02  	 call hlout ; display address
+ 236:	0182  1608    	 ld d,8 ; eight bytes/line
+ 237:	0184  CD1702  	sub1: call bspace ; skip a space
+ 238:	0187  7E      	 ld a,(hl) ; get contents
+ 239:	0188  CD2102  	 call hout ; display
+ 240:	018B  3E2D    	 ld a,'-' ; prompt with '-'
+ 241:	018D  CD3502  	 call bout ; display
+ 242:	0190  CDE102  	 call getbyt ; get byte
+ 243:	0193  DAA001  	 jp c,sub3 ; if ok, substute
+ 244:	0196  FE0D    	 cp 00dh ; test for abort
+ 245:	0198  C8      	 ret z ; if so, back for command
+ 246:	0199  CD1702  	 call bspace ; otherwise, print.
+ 247:	019C  CD1702  	 call bspace ; two spaces (same space as hex digits)
+ 248:	019F  7E      	 ld a,(hl) ; get old byte back
+ 249:	01A0  77      	sub3: ld (hl),a ; replace memory contents
+ 250:	01A1  23      	snxt: inc hl ; next location in memory
+ 251:	01A2  15      	 dec d ; reduce count of bytes/line
+ 252:	01A3  C28401  	 jp nz,sub1 ; if ok, stay on same line
+ 253:	01A6  C37C01  	 jp sub0 ; otherwise go to new line
+ 254:			
+ 255:			
+ 256:			
+ 257:	01A9  CDC100  	dump: call dget ; get addresses
+ 258:			
+ 259:	01AC  23      	dump1: inc hl ; advance by one byte
+ 260:	01AD  7C      	 ld a,h ; test for special case
+ 261:	01AE  A7      	 and a ; if zero page
+ 262:	01AF  CAC801  	 jp z,lbot ; if so, special case
+ 263:	01B2  E5      	 push hl ; save ending value
+ 264:	01B3  0101FF  	 ld bc,0ff01h ; get value to subtract
+ 265:	01B6  09      	 add hl,bc ; subtract from ending address
+ 266:	01B7  EB      	 ex de,hl ; swap back
+ 267:	01B8  CD1102  	drecl: call chlde ; see if we have finished yet
+ 268:	01BB  D2C601  	 jp nc,lrec ; if so, last record
+ 269:	01BE  3EFF    	 ld a,0ffh ; otherwise, record length is 255
+ 270:	01C0  CDD701  	 call dumpr ; dump out record
+ 271:	01C3  C3B801  	 jp drecl ; keep going till last record
+ 272:	01C6  D1      	lrec: pop de ; get addres back
+ 273:	01C7  EB      	 ex de,hl ; swap
+ 274:	01C8  D5      	lbot: push de ; get address back
+ 275:	01C9  7A      	 ld a,d ; take.
+ 276:	01CA  2F      	 cpl ; twos.
+ 277:	01CB  57      	 ld d,a ; complement.
+ 278:	01CC  7B      	 ld a,e ; so we can.
+ 279:	01CD  2F      	 cpl ; subtract.
+ 280:	01CE  5F      	 ld e,a ; from the
+ 281:	01CF  13      	 inc de ; origional address
+ 282:	01D0  19      	 add hl,de ; subtract
+ 283:	01D1  7D      	 ld a,l ; get length
+ 284:	01D2  E1      	 pop hl ; get address back
+ 285:	01D3  CDD701  	 call dumpr ; dump last record
+ 286:	01D6  97      	 sub a ; end of file indicator
+ 287:			
+ 288:			
+ 289:			
+ 290:	01D7  47      	dumpr: ld b,a ; save length in b
+ 291:	01D8  3E04    	 ld a,4 ; set for uart output
+ 292:	01DA  32FFF0  	 ld (iocon),a ; set i/o conf
+ 293:	01DD  CD7F03  	 call nl ; display lf cr to tape
+ 294:	01E0  3E3A    	 ld a,':' ; start of record
+ 295:	01E2  CD3502  	 call bout ; write to tabe
+ 296:	01E5  78      	 ld a,b ; get length
+ 297:	01E6  4F      	 ld c,a ; start checksum
+ 298:	01E7  CD2102  	 call hout ; write length to tape
+ 299:	01EA  78      	 ld a,b ; get length back
+ 300:	01EB  A7      	 and a ; test for end of file
+ 301:	01EC  CA0B02  	 jp z,endmp ; if so, stop
+ 302:	01EF  CD1C02  	 call hlout ; write address to tape
+ 303:	01F2  79      	 ld a,c ; get checksum
+ 304:	01F3  84      	 add a,h ; add high address
+ 305:	01F4  85      	 add a,l ; add low address
+ 306:	01F5  4F      	 ld c,a ; resave checksum
+ 307:	01F6  97      	 sub a ; data type zero
+ 308:	01F7  CD2102  	 call hout ; write to tape
+ 309:	01FA  7E      	mhex: ld a,(hl) ; get byte of data to dump
+ 310:	01FB  CD2102  	 call hout ; write to tape
+ 311:	01FE  7E      	 ld a,(hl) ; get data back
+ 312:	01FF  81      	 add a,c ; add to checksum
+ 313:	0200  4F      	 ld c,a ; resave checksum
+ 314:	0201  23      	 inc hl ; next memory location
+ 315:	0202  05      	 dec b ; reduce length
+ 316:	0203  C2FA01  	 jp nz,mhex ; if not end, keep dumping
+ 317:	0206  2F      	 cpl ; invert to make.
+ 318:	0207  3C      	 inc a ; twos complement checksum
+ 319:	0208  CD2102  	 call hout ; write checksum to tape
+ 320:	020B  3E05    	endmp: ld a,defio ; get default i/o conf
+ 321:	020D  32FFF0  	 ld (iocon),a ; reset i/o configuration
+ 322:	0210  C9      	 ret
+ 323:			
+ 324:			
+ 325:			
+ 326:	0211  7C      	chlde: ld a,h ; get high if hl
+ 327:	0212  BA      	 cp d ; test with high of de
+ 328:	0213  C0      	 ret nz ; if not same, problem solved
+ 329:	0214  7D      	 ld a,l ; get low hl
+ 330:	0215  BB      	 cp e ; set flags for compare with low de
+ 331:	0216  C9      	 ret
+ 332:			
+ 333:	0217  3E20    	bspace: ld a,' ' ; get a space
+ 334:	0219  C33502  	 jp bout ; display
+ 335:			
+ 336:			
+ 337:			
+ 338:	021C  7C      	hlout: ld a,h ; get h
+ 339:	021D  CD2102  	 call hout ; display h in hex
+ 340:	0220  7D      	 ld a,l ; get l
+ 341:			
+ 342:	0221  F5      	hout: push af ; save low digit
+ 343:	0222  0F      	 rrca ; make high.
+ 344:	0223  0F      	 rrca ; digit.
+ 345:	0224  0F      	 rrca ; into.
+ 346:	0225  0F      	 rrca ; low digit.
+ 347:	0226  CD2A02  	 call hxout ; print high digit
+ 348:	0229  F1      	 pop af ; get low digit back
+ 349:	022A  E60F    	hxout: and 00fh ; get rid of excess baggage
+ 350:	022C  C630    	 add a,030h ; convert to ascii number
+ 351:	022E  FE3A    	 cp 03ah ; test for alpha character
+ 352:	0230  DA3502  	 jp c,bout ; if not, we are ok
+ 353:	0233  C607    	 add a,7 ; convert to character
+ 354:			
+ 355:			
+ 356:			
+ 357:			
+ 358:	0235  C5      	bout: push bc ; save b-c pair
+ 359:	0236  D5      	 push de ; save d-e pair
+ 360:	0237  E5      	 push hl ; save h-l pair
+ 361:	0238  47      	 ld b,a ; save character in b
+ 362:	0239  3AFFF0  	 ld a,(iocon) ; get i/o configuration
+ 363:	023C  4F      	 ld c,a ; save in c
+ 364:	023D  E640    	 and 040h ; test for output disabled
+ 365:	023F  C27D02  	 jp nz,oexit ; if so, abort
+ 366:	0242  79      	 ld a,c ; get configuration back
+ 367:	0243  E602    	 and 2 ; test for video display enabled
+ 368:	0245  CA5502  	 jp z,ourt ; no, try uart
+ 369:			    ; char in b, going to console port
+ 370:	0248          	console_out: ; loop
+ 371:	0248  ED3804  	 BYTE 0edh,38h,04h
+ 372:	024B  E602    	 and 002h ; get status and test
+ 373:	024D  FE02    	 cp 002h ;
+ 374:	024F  20F7    	 jr nz,console_out ; loop till ready
+ 375:	0251  78      	 ld a,b ; get char from b
+ 376:	0252  ED3906  	 BYTE 0edh,39h,06h
+ 377:			
+ 378:	0255  79      	ourt: ld a,c ; get i/o configuration
+ 379:	0256  E604    	 and 4 ; test for uart enabled
+ 380:	0258  CA6802  	 jp z,ousr ; if not, try user supplied routine
+ 381:	025B  ED3805  	ulp1: BYTE 0edh,38h,05h
+ 382:			    ; get uart status
+ 383:	025E  E602    	 and 002h ; test for xmit ready
+ 384:	0260  FE02    	 cp 002h ;
+ 385:	0262  20F7    	 jr nz,ulp1 ; if not, keep trying
+ 386:	0264  78      	 ld a,b ; get character
+ 387:	0265  ED3907  	 BYTE 0edh,39h,07h
+ 388:			
+ 389:	0268  79      	ousr: ld a,c ; get i/o configuration
+ 390:	0269  E608    	 and 008h ; test for user device enabled
+ 391:	026B  CA7D02  	 jp z,oexit ; if not, exit
+ 392:	026E  217D02  	 ld hl,oexit ; address to return to
+ 393:	0271  E5      	 push hl ; save on stack
+ 394:	0272  2A01F1  	 ld hl,(usrout) ; address to jump to
+ 395:	0275  E9      	 jp (hl) ; call his routine
+ 396:	0276          	lcd_out: ; basic plug for user output device
+ 397:	0276  78      	 ld a,b ; get char back
+ 398:	0277  D3B9    	 out (data_lcd),a ; send it
+ 399:	0279  CD9F03  	 call delay; ; wait for the delay time
+ 400:	027C  C9      	 ret ;
+ 401:	027D  E1      	oexit: pop hl ; restore h-l
+ 402:	027E  D1      	 pop de ; restore d-e
+ 403:	027F  78      	 ld a,b ; character is in a
+ 404:	0280  C1      	 pop bc ; restore b-c
+ 405:	0281  C9      	 ret
+ 406:			
+ 407:			
+ 408:			
+ 409:	0282  C5      	bin: push bc ; save b-c pair
+ 410:	0283  3AFFF0  	ins1: ld a,(iocon) ; get input/output configuration
+ 411:	0286  47      	 ld b,a ; save copy in b for fast reference
+ 412:	0287  0F      	 rrca ; test for input from keyboard
+ 413:	0288  DA9C02  	 jp c,in_console ; if so, get character from kbd
+ 414:			
+ 415:	028B          	uin: ; get uart status
+ 416:	028B  ED3805  	 BYTE 0edh,38h,05h
+ 417:	028E  E680    	 and 080h ; test for received character
+ 418:	0290  28F9    	 jr z,uin ; if not, wait for it
+ 419:			    ; get data from uart
+ 420:	0292  ED3809  	 BYTE 0edh,38h,09h
+ 421:	0295  C3A602  	 jp inend ; process
+ 422:			
+ 423:	0298  DBB4    	kbd: in a,(kbdctrl) ; get keyboard data
+ 424:	029A  180A    	 jr inend ; got key press goto end
+ 425:	029C          	in_console: ; read char from console tty
+ 426:	029C  ED3804  	 BYTE 0edh,38h,04h
+ 427:	029F  E680    	 and 080h ; get status and test
+ 428:	02A1  28F9    	 jr z,in_console ; loop till char
+ 429:	02A3  ED3808  	 BYTE 0edh,38h,08h
+ 430:			    ; we have char in acc, drop through
+ 431:			
+ 432:	02A6  4F      	inend: ld c,a ; save character
+ 433:	02A7  FE03    	 cp 3 ; test for control-c
+ 434:	02A9  78      	 ld a,b ; get io configuration
+ 435:	02AA  CABB02  	 jp z,ctlc ; if ctrl-c, special case
+ 436:	02AD  E610    	 and 010h ; test for upper case conversin
+ 437:	02AF  79      	 ld a,c ; get character back
+ 438:	02B0  C1      	 pop bc ; restore b-c pair
+ 439:	02B1  C0      	 ret nz ; if upper case disabled, then dont change
+ 440:	02B2  FE61    	 cp 061h ; test for < lower case a
+ 441:	02B4  D8      	 ret c ; if so, then dont change
+ 442:	02B5  FE7B    	 cp 07bh ; test for > lower case z
+ 443:	02B7  D0      	 ret nc ; if so, dont change
+ 444:	02B8  E65F    	 and 05fh ; convert to upper case
+ 445:	02BA  C9      	 ret
+ 446:			
+ 447:	02BB  E620    	ctlc: and 020h ; test for control-c disabled
+ 448:	02BD  C28302  	 jp nz,ins1 ; if so, get next character
+ 449:	02C0  79      	 ld a,c ; get character back
+ 450:	02C1  C1      	 pop bc ; restore b-c
+ 451:	02C2  C9      	 ret
+ 452:			
+ 453:			
+ 454:			
+ 455:			
+ 456:	02C3          	ctrlc:
+ 457:	02C3  ED3804  	 BYTE 0edh,38h,04h
+ 458:	02C6  EE80    	 xor 080h ; see if there is a char in the input buffer
+ 459:	02C8  F8      	 ret m ; ditch the zero strobe
+ 460:	02C9  ED3808  	 BYTE 0edh,38h,08h
+ 461:	02CC  E67F    	 and 07fh ; get char and test
+ 462:	02CE  FE03    	 cp 3 ; test for control-c
+ 463:	02D0  C0      	 ret nz ; if not, dont process
+ 464:	02D1  3AFFF0  	 ld a,(iocon) ; get i/o configuration
+ 465:	02D4  E620    	 and 020h ; test for control-c inhibit. (z=0 if not)
+ 466:	02D6  C9      	 ret
+ 467:			
+ 468:			
+ 469:	02D7  CDE102  	gethl: call getbyt ; get first byte
+ 470:	02DA  D0      	 ret nc ; if bad, dont wait for second
+ 471:	02DB  67      	 ld h,a ; save in high byte of result
+ 472:	02DC  CDE102  	 call getbyt ; get second byte
+ 473:	02DF  6F      	 ld l,a ; save in low byte of result
+ 474:	02E0  C9      	 ret
+ 475:			
+ 476:	02E1  C5      	getbyt: push bc ; save b-c pair
+ 477:	02E2  CDF702  	 call getnib ; geet first nibble
+ 478:	02E5  D2F502  	 jp nc,retgb ; if bad, dont wait for more
+ 479:	02E8  07      	 rlca ; shift into.
+ 480:	02E9  07      	 rlca ; upper nibble.
+ 481:	02EA  07      	 rlca ; of result.
+ 482:	02EB  07      	 rlca ; so we can insert lower nibble
+ 483:	02EC  47      	 ld b,a ; keep high digit in b
+ 484:	02ED  CDF702  	 call getnib ; get second digit
+ 485:	02F0  D2F502  	 jp nc,retgb ; if bad, indicate so
+ 486:	02F3  B0      	 or b ; insert high digit
+ 487:	02F4  37      	 scf ; indicate sucess
+ 488:	02F5  C1      	retgb: pop bc ; restore b-c pair
+ 489:	02F6  C9      	 ret
+ 490:			
+ 491:	02F7  CD8202  	getnib: call bin ; get a character
+ 492:	02FA  FE20    	 cp ' ' ; test for blank (abort1)
+ 493:	02FC  C8      	 ret z ; if so, return indicating bad (cy=0)
+ 494:	02FD  FE0D    	 cp 00dh ; test for <cr> (abort2)
+ 495:	02FF  C8      	 ret z ; if so, return indicating bad
+ 496:	0300  FE30    	 cp '0' ; test for invalid (below 0)
+ 497:	0302  DAF702  	 jp c,getnib ; if so, wait for more
+ 498:	0305  FE47    	 cp 'G' ; test for invalid (greater than f)
+ 499:	0307  D2F702  	 jp nc,getnib ; if so, ignore
+ 500:	030A  CD3502  	 call bout ; display character
+ 501:	030D  FE3A    	 cp 03ah ; test for invalid
+ 502:	030F  DA1903  	 jp c,numh ; if ok, we are in
+ 503:	0312  FE41    	 cp 'A' ; test for invalid
+ 504:	0314  DAF702  	 jp c,getnib ; if bad, ignore
+ 505:	0317  D607    	 sub 7 ; convert to digit
+ 506:	0319  D630    	numh: sub 030h ; convert to binary
+ 507:	031B  37      	 scf ; indicate sucess
+ 508:	031C  C9      	 ret
+ 509:			
+ 510:	031D  3E42    	getr: ld a,042h ; inhibit output, enable uart
+ 511:	031F  32FFF0  	 ld (iocon),a ; set i/o conf
+ 512:			
+ 513:	0322  CD8202  	get1: call bin ; get character from tape
+ 514:	0325  FE3A    	 cp ':' ; test for start of record
+ 515:	0327  C22203  	 jp nz,get1 ; if not, ignore
+ 516:			
+ 517:	032A  CDE102  	 call getbyt ; get length
+ 518:	032D  A7      	 and a ; test for end of file
+ 519:	032E  CA6103  	 jp z,rset ; if so, process
+ 520:	0331  4F      	 ld c,a ; start checksum
+ 521:	0332  47      	 ld b,a ; remebmer length
+ 522:	0333  CDD702  	 call gethl ; get address
+ 523:	0336  79      	 ld a,c ; get checksum
+ 524:	0337  84      	 add a,h ; add high byte of address
+ 525:	0338  85      	 add a,l ; add low byte of address
+ 526:	0339  4F      	 ld c,a ; resave checksum
+ 527:	033A  CDE102  	 call getbyt ; get type byte
+ 528:	033D  81      	 add a,c ; add to checksum
+ 529:	033E  4F      	 ld c,a ; resave checksum
+ 530:	033F  CDE102  	neor: call getbyt ; get data byte
+ 531:	0342  77      	 ld (hl),a ; save in memory
+ 532:	0343  23      	 inc hl ; point to next location
+ 533:	0344  81      	 add a,c ; add to checksum
+ 534:	0345  4F      	 ld c,a ; resave checksum
+ 535:	0346  05      	 dec b ; reduce count of remaining data bytes
+ 536:	0347  C23F03  	 jp nz,neor ; if more, keep loading
+ 537:	034A  CDE102  	 call getbyt ; get checksum. (from tape)
+ 538:	034D  81      	 add a,c ; add to computed checksum
+ 539:	034E  CA5C03  	 jp z,eipl ; if ok, end this record
+ 540:	0351  CD6103  	 call rset ; clear flags
+ 541:	0354  216803  	 ld hl,errmsg ; address of ?i/o error message
+ 542:	0357  CD7303  	 call pmsg ; print message
+ 543:	035A  A7      	 and a ; indicate end of load
+ 544:	035B  C9      	 ret
+ 545:			
+ 546:	035C  CD6103  	eipl: call rset ; reset default i/0
+ 547:	035F  37      	 scf ; indicate more data
+ 548:	0360  C9      	 ret
+ 549:			
+ 550:	0361  3E05    	rset: ld a,defio ; set to default i/o
+ 551:	0363  32FFF0  	 ld (iocon),a ; save in i/o conf
+ 552:	0366  A7      	 and a ; indicate done
+ 553:	0367  C9      	 ret
+ 554:	0368  3F692F6F	errmsg: ascii '?i/o error' ; error message
+	      20657272
+	      6F72
+ 555:	0372  0D      	 byte 00dh
+ 556:			
+ 557:	0373  7E      	pmsg: ld a,(hl) ; get character from message
+ 558:	0374  A7      	 and a ; end of message?
+ 559:	0375  C8      	 ret z ; if so, return
+ 560:	0376  CD3502  	 call bout ; display it
+ 561:	0379  23      	 inc hl ; point to next char. in message
+ 562:	037A  FE0D    	 cp 00dh ; test for carriage return
+ 563:	037C  C27303  	 jp nz,pmsg ; if not, keep displaying
+ 564:			
+ 565:	037F  3E0A    	nl: ld a,00ah ; get line-feed
+ 566:	0381  CD3502  	 call bout ; display
+ 567:	0384  3E0D    	 ld a,00dh ; get carriage return
+ 568:	0386  C33502  	 jp bout ; display and return
+ 569:			
+ 570:	0389          	load: ;
+ 571:	0389  16FF    	 ld d,0ffh ; set number of records dumped to 255
+ 572:	038B  CD7F03  	 call nl ; advance to a new line
+ 573:	038E  14      	lodlp: inc d ; advance number of records dumped
+ 574:	038F  7A      	 ld a,d ; get number of records dumped
+ 575:	0390  CD2102  	 call hout ; display on terminal
+ 576:	0393  CD1D03  	 call getr ; get next record
+ 577:	0396  D0      	 ret nc ; if end, get next command
+ 578:	0397  3E0D    	 ld a,00dh ; get carriage return
+ 579:	0399  CD3502  	 call bout ; back up to start of line
+ 580:	039C  C38E03  	 jp lodlp ; get next record
+ 581:			
+ 582:	039F  E5      	delay: push hl ; save h-l
+ 583:	03A0  2600    	 ld h,0 ; start counting from zero
+ 584:	03A2  2B      	del1: dec hl ; reduce count
+ 585:	03A3  7C      	 ld a,h ; get high value
+ 586:	03A4  B5      	 or l ; test for zero with low value
+ 587:	03A5  C2A203  	 jp nz,del1 ; if not, keep counting
+ 588:	03A8  E1      	 pop hl ; restore h-l
+ 589:	03A9  C9      	 ret
+ 590:			
+ 591:			
+ 592:			
+ 593:			
+ 594:			
+ 595:	03AA          	tmode:
+ 596:	03AA  21FA03  	 ld hl,host_mes ; tell user what we are doing
+ 597:	03AD  CD7303  	 call pmsg ; print it
+ 598:	03B0  060D    	 ld b,00dh ; wake host up
+ 599:	03B2  CDD403  	 call con_hL ; send it
+ 600:	03B5  3F      	 ccf ; clear the carry flag
+ 601:	03B6          	tmode_loop: ; loop point
+ 602:	03B6  ED3804  	 BYTE 0edh,38h,04h
+ 603:	03B9  E680    	 and 080h ; see if thete is a char in the console
+ 604:			    ; receive buffer
+ 605:	03BB  C4CA03  	 call nz,con_host ; get char and send to host
+ 606:	03BE  D8      	 ret c ; return to system loop
+ 607:	03BF  ED3805  	 BYTE 0edh,38h,05h
+ 608:	03C2  E680    	 and 080h ; now test the host buffer
+ 609:	03C4  C4E203  	 call nz,host_con ;
+ 610:	03C7  D8      	 ret c ; return to system loop
+ 611:	03C8  18EC    	 jr tmode_loop ; loop till done
+ 612:			    ;
+ 613:	03CA          	con_host: ; char in console buffer, to goto host
+ 614:	03CA  ED3808  	 BYTE 0edh,38h,08h
+ 615:	03CD  F5      	 push af
+ 616:	03CE  F1      	 pop af
+ 617:	03CF  FE1C    	 cp 01ch ;
+ 618:	03D1  2825    	 jr z,host_end ; get out
+ 619:	03D3  47      	 ld b,a ; get char, and test for exit
+ 620:	03D4          	con_hL: ; loop point
+ 621:	03D4  ED3805  	 BYTE 0edh,38h,05h
+ 622:	03D7  E602    	 and 002h ; test for clear tx buffer
+ 623:	03D9  FE02    	 cp 002h ;
+ 624:	03DB  20F7    	 jr nz,con_hL ; loop till clear
+ 625:	03DD  78      	 ld a,b ; get char back from b
+ 626:	03DE  ED3907  	 BYTE 0edh,39h,07h
+ 627:	03E1  C9      	 ret ;
+ 628:	03E2          	host_con: ; char in host buffer, to goto console
+ 629:	03E2  ED3809  	 BYTE 0edh,38h,09h
+ 630:	03E5  FE1C    	 cp 01ch ;
+ 631:	03E7  280F    	 jr z,host_end ; get out
+ 632:	03E9  47      	 ld b,a ; get char, and test for exit
+ 633:	03EA          	host_cL: ; loop point
+ 634:	03EA  ED3804  	 BYTE 0edh,38h,04h
+ 635:	03ED  E602    	 and 002h ; test for clear tx buffer
+ 636:	03EF  FE02    	 cp 002h ;
+ 637:	03F1  20F7    	 jr nz,host_cL ; loop till clear
+ 638:	03F3  78      	 ld a,b ; get char back from b
+ 639:	03F4  ED3906  	 BYTE 0edh,39h,06h
+ 640:	03F7  C9      	 ret ; ret
+ 641:	03F8          	host_end: ; get out of here
+ 642:	03F8  37      	 scf ; set the carry flag
+ 643:	03F9  C9      	 ret ;
+ 644:	03FA          	host_mes: ; tell user what is happning
+ 645:	03FA  5472616E	 ascii 'Transparant Mode, ctrl-\ to exit'
+	      73706172
+	      616E7420
+	      4D6F6465
+	      2C206374
+	      726C2D5C
+	      20746F20
+	      65786974
+ 646:	041A  0D      	 byte 00dh ;
+ 647:			
+ 648:			    ;
+ 649:	041B          	init: ; head of the init foutine,
+ 650:			    ; hl holds the data for the
+ 651:			    ; console/host channel of the
+ 652:			    ; duart
+ 653:	041B  CD2504  	 call init_serial ; so we do this first
+ 654:	041E  CD4604  	 call init_lcd ; then the LCD
+ 655:	0421  CD6404  	 call init_i2c ; then the i2c interface
+ 656:			    ; now any basic system variables
+ 657:			    ;
+ 658:	0424  C9      	 ret ; return to base code
+ 659:			    ;
+ 660:	0425          	init_serial: ; set thei internal serial devices
+ 661:			    ; up
+ 662:			    ; hl holds the basic data
+ 663:	0425  3E72    	 ld a,072h ;
+ 664:	0427  ED3900  	 BYTE 0edh,39h,00h
+ 665:	042A  ED3901  	 BYTE 0edh,39h,01h
+ 666:	042D  3E00    	 ld a,000h ;
+ 667:	042F  ED3902  	 BYTE 0edh,39h,02h
+ 668:	0432  ED3903  	 BYTE 0edh,39h,03h
+ 669:	0435  3E00    	 ld a,000h ;
+ 670:	0437  ED3904  	 BYTE 0edh,39h,04h
+ 671:	043A  3E04    	 ld a,004h
+ 672:	043C  ED3905  	 BYTE 0edh,39h,05h
+ 673:			    ;
+ 674:	043F  ED3808  	 BYTE 0edh,38h,08h
+ 675:	0442  ED3809  	 BYTE 0edh,38h,09h
+ 676:	0445  C9      	 ret ; serial lines now setup
+ 677:			    ;
+ 678:	0446          	init_lcd: ; set the LCD display up
+ 679:	0446  115B04  	 ld de,lcd_data ; init code for the LCD
+ 680:	0449          	lcd_il1: ; init loop
+ 681:	0449  1A      	 ld a,(de) ; get a byte
+ 682:	044A  FE00    	 cp 0 ; if zero end of table
+ 683:	044C  C8      	 ret z ;
+ 684:	044D  D3B8    	 out (csr_lcd),a ; write it to the lcd
+ 685:	044F  CD9F03  	 call delay ; wait for the LCD
+ 686:	0452  CD9F03  	 call delay ; wait for the LCD
+ 687:	0455  CD9F03  	 call delay ; wait for the LCD
+ 688:	0458  13      	 inc de ; move pointer up one
+ 689:	0459  18EE    	 jr lcd_il1 ; loop
+ 690:			    ;
+ 691:	045B          	lcd_data: ; LCD setup data
+ 692:	045B  38383804	        byte 38h,38h,38h,04h,06h,40h,01h,0ch,00h
+	      0640010C
+	      00
+ 693:			    ;
+ 694:			    ;
+ 695:			    ;
+ 696:	0464          	init_i2c: ; setup the I2C chip as a master
+ 697:	0464  C9      	 ret ;
+ 698:			    ;
+ 699:			;*******************************;
+ 700:			; END of INIT CODE ;
+**** part.z ****
+
+
+
+Statistics:
+
+   136	symbols
+  1068	bytes
+
+
+
+Symbol Table:
+
+abort             d3     get1             322     nmi            =f24c     
+aget              ca     getbyt           2e1     nmi_rot           66+    
+aryloc         =f1fd     gethl            2d7     numh             319     
+basic          =f24e     getnib           2f7     oexit            27d     
+bin              282     getr             31d     opener            a5     
+bout             235     go               175     origin         =   0     
+bspace           217     grentry          132     ourt             255     
+buff           =f000     help             136     ousr             268     
+chlde            211     help_mes         13d     pa_8255        =  b0+    
+clook             ee     hlout            21c     pb_8255        =  b1+    
+cmd_wait         11e     host_cl          3ea     pbasic         =1000     
+con_hl           3d4     host_con         3e2     pc_8255        =  b2+    
+con_host         3ca     host_end         3f8     pend           =f236     
+console_out      248     host_mes         3fa     pmsg             373     
+cp1            =f246     hout             221     prentry        =10a1     
+cp2            =f247     hxout            22a     prnt              d9     
+cp3            =f248     iflag          =f235     rentry         =f250     
+cp4            =f249     in_console       29c     rest7          =f24a     
+cs             =f1fa     inend            2a6     restart7          38+    
+csp            =f1fb     init             41b     retgb            2f5     
+csr_8255       =  b3+    init_i2c         464     rflag          =f234     
+csr_i2c        =  bd+    init_lcd         446     rset             361     
+csr_lcd        =  b8     init_serial      425     rtc_int        =f256+    
+ctab             102     ins1             283     seed           =f1fe     
+ctlc             2bb     iocon          =f0ff     sleep          =f252     
+ctrlc            2c3     kbd              298+    snxt             1a1+    
+cursor         =f103     kbd_dat        =f255     stack          =ffff     
+data           =f238     kbd_reg        =f254     start             6c     
+data_i2c       =  bc+    kbdctrl        =  b4     stub              c0     
+data_lcd       =  b9     keybrd         =   0+    sub0             17c     
+defio          =   5     last           =f23a     sub1             184     
+del1             3a2     lbot             1c8     sub3             1a0     
+delay            39f     lcd_data         45b     subst            179     
+delete         =  7f+    lcd_il1          449     tb             =f032     
+dget              c1     lcd_out          276     temp           =f23c     
+drecl            1b8     load             389     tmode            3aa     
+dump             1a9     lodlp            38e     tmode_loop       3b6     
+dump1            1ac+    lrec             1c6     txt            =8000+    
+dumpr            1d7     lstchr         =f105+    uin              28b     
+edbuf          =f100     main               0+    ulp1             25b     
+eflag          =f237     memry            152     usrout         =f101     
+eipl             35c     mhex             1fa     vars           =f200     
+endmp            20b     ml1              15c     vartop         =  f6+    
+errmsg           368     mloop            156     xbf            =f064+    
+error             ce     neor             33f     
+gbasic           12e     nl               37f     

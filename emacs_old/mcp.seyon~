@@ -1,0 +1,7 @@
+set bits 8 
+set baud 4800 
+set parity 0 
+set stopBits 1 
+set rtscts off 
+set stripHighBit on 
+set xoff off 
